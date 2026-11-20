@@ -8,6 +8,7 @@ import { failed, text, toFormState, type FormState } from "./result";
 export async function signUp(_prev: FormState, form: FormData): Promise<FormState> {
   try {
     const user = await registerBusiness({
+      inviteCode: text(form, "inviteCode"),
       businessName: text(form, "businessName"),
       town: text(form, "town"),
       ownerName: text(form, "ownerName"),

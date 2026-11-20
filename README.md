@@ -186,6 +186,10 @@ npm run dev                   # http://localhost:3100
 
 Sign in as `owner@kantemba.test`, `manager@kantemba.test` or `cashier@kantemba.test` with your `SEED_OWNER_PASSWORD`, or register a new business at `/signup`.
 
+## Deploying
+
+Kantemba runs on **Render** with its data on **Neon** PostgreSQL. [`render.yaml`](render.yaml) describes the service, and [DEPLOYMENT.md](DEPLOYMENT.md) walks through setup step by step, including the optional invite code for pilots (`SIGNUP_CODE`). `/api/health` checks the app and its database.
+
 ## Project layout
 
 ```

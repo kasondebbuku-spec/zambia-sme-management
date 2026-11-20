@@ -1,0 +1,25 @@
+# Render blueprint: Render reads this file and creates the web service.
+# The database lives on Neon; paste its two connection strings when Render asks.
+# Guide: DEPLOYMENT.md
+services:
+  - type: web
+    name: kantemba
+    runtime: node
+    plan: free # switch to "starter" (always awake) once shops are paying
+    region: frankfurt # matches Neon's Frankfurt region
+    branch: main
+    autoDeploy: true # every merge to main deploys
+    buildCommand: npm ci && npx prisma migrate deploy && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: DATABASE_URL # Neon pooled connection string (host contains "-pooler")
+        sync: false
+      - key: DIRECT_URL # Neon direct connection string, used for migrations
+        sync: false
+      - key: SESSION_SECRET # Render generates a long random value
+        generateValue: true
+      - key: SIGNUP_CODE # the invite code you give your pilot shops
+        sync: false
