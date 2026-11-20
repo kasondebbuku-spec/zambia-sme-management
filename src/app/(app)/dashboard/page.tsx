@@ -2,23 +2,26 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { formatKwacha } from "@/lib/money";
 import { inventorySummary } from "@/server/products";
+import { lusakaDay, salesBetween } from "@/server/sales";
 import { requireUser } from "@/server/session";
 
 export const metadata: Metadata = { title: "Dashboard" };
 
 export default async function DashboardPage() {
   const { user, ctx } = await requireUser();
-  const s = await inventorySummary(ctx);
+  const { from, to } = lusakaDay();
+  const [s, today] = await Promise.all([inventorySummary(ctx), salesBetween(ctx, from, to)]);
   const canManage = user.role !== "CASHIER";
 
   return (
     <div className="space-y-8">
       <div>
         <h1 className="text-2xl font-semibold">Hello, {user.name.split(" ")[0]}</h1>
-        <p className="mt-1 text-muted">Here&apos;s your stock today.</p>
+        <p className="mt-1 text-muted">Here&apos;s your shop today.</p>
       </div>
 
-      <dl className="grid gap-3 sm:grid-cols-4">
+      <dl className="grid gap-3 sm:grid-cols-5">
+        <Stat label="Sales today" value={`${formatKwacha(today.totalNgwee)}`} hint={`${today.count} sales`} />
         <Stat label="Products" value={String(s.productCount)} />
         <Stat label="Stock value (cost)" value={formatKwacha(s.stockValueAtCostNgwee)} hint="What you've paid for what's on the shelf" />
         <Stat label="Stock value (selling)" value={formatKwacha(s.stockValueAtPriceNgwee)} hint="If everything sold at today's prices" />

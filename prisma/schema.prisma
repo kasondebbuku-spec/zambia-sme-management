@@ -1,6 +1,6 @@
 // Kantemba data model.
 //
-// A Business (a shop) has Users and Products. Every change to a product's stock is written
+// A Business (a shop) has Users, Products and Sales. Every change to a product's stock is written
 // to StockMovement, an append-only ledger: the quantity on Product is a running total that
 // always equals the sum of its movements. Money is stored in ngwee (K1 = 100 ngwee) so
 // amounts are whole numbers and never suffer floating-point rounding.
@@ -20,6 +20,16 @@ enum Role {
   CASHIER // sells; can't change prices or adjust stock
 }
 
+enum PaymentMethod {
+  CASH
+  MOBILE_MONEY // Airtel Money, MTN MoMo or Zamtel Kwacha, confirmed on the phone; reference recorded
+}
+
+enum SaleStatus {
+  COMPLETED
+  VOIDED // cancelled by a manager; stock went back on the shelf
+}
+
 enum MovementType {
   OPENING // stock counted when the product was added
   RESTOCK // received from a supplier
@@ -34,11 +44,15 @@ model Business {
   name      String
   phone     String?
   town      String?
-  createdAt DateTime @default(now())
+  // Next receipt number. Incremented inside the sale's transaction, so a sale that fails
+  // never uses up a number and receipts have no gaps.
+  nextReceiptNo Int      @default(1)
+  createdAt     DateTime @default(now())
 
   users     User[]
   products  Product[]
   movements StockMovement[]
+  sales     Sale[]
 }
 
 model User {
@@ -53,6 +67,8 @@ model User {
   createdAt    DateTime @default(now())
 
   movements StockMovement[]
+  sales     Sale[]   @relation("Cashier")
+  voids     Sale[]   @relation("VoidedBy")
 
   @@index([businessId])
 }
@@ -74,6 +90,7 @@ model Product {
   updatedAt    DateTime @updatedAt
 
   movements StockMovement[]
+  saleItems SaleItem[]
 
   @@unique([businessId, sku])
   @@index([businessId, name])
@@ -92,8 +109,63 @@ model StockMovement {
   note         String?
   userId       String?
   user         User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+  saleId       String? // set for SALE movements, and for RETURNs from a voided sale
+  sale         Sale?        @relation(fields: [saleId], references: [id], onDelete: SetNull)
   createdAt    DateTime     @default(now())
 
   @@index([productId, createdAt])
   @@index([businessId, createdAt])
+}
+
+model Sale {
+  id         String     @id @default(cuid())
+  businessId String
+  business   Business   @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  receiptNo  Int // 1, 2, 3… per business, no gaps
+  // Made by the till when the basket starts. If a slow connection makes the cashier tap
+  // "Complete sale" twice, the second request finds this and returns the same sale.
+  clientRef  String
+  cashierId  String?
+  cashier    User?      @relation("Cashier", fields: [cashierId], references: [id], onDelete: SetNull)
+  status     SaleStatus @default(COMPLETED)
+
+  totalNgwee     Int
+  costTotalNgwee Int // what the goods cost the shop, for profit
+  method         PaymentMethod
+  tenderedNgwee  Int? // cash handed over
+  changeNgwee    Int? // cash given back
+  paymentRef     String? // mobile-money transaction ID
+  customerPhone  String?
+
+  voidedAt   DateTime?
+  voidedById String?
+  voidedBy   User?     @relation("VoidedBy", fields: [voidedById], references: [id], onDelete: SetNull)
+  voidReason String?
+  createdAt  DateTime  @default(now())
+
+  items     SaleItem[]
+  movements StockMovement[]
+
+  @@unique([businessId, receiptNo])
+  @@unique([businessId, clientRef])
+  @@index([businessId, createdAt])
+}
+
+// One line on a receipt. Name and prices are copied at the time of sale, so changing a
+// product later never rewrites old receipts or past profit.
+model SaleItem {
+  id             String  @id @default(cuid())
+  saleId         String
+  sale           Sale    @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  productId      String
+  product        Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+  name           String
+  sku            String
+  unit           String
+  quantity       Int
+  unitPriceNgwee Int
+  unitCostNgwee  Int
+  lineTotalNgwee Int
+
+  @@index([productId])
 }

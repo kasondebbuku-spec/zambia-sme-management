@@ -18,6 +18,7 @@ export type MovementInput = {
   quantity: number; // signed: positive adds stock, negative removes it
   note?: string | null;
   costNgwee?: number | null;
+  saleId?: string | null;
 };
 
 /**
@@ -59,6 +60,7 @@ export async function moveStock(tx: Tx, ctx: Ctx, m: MovementInput) {
       costNgwee: m.costNgwee ?? null,
       note: m.note?.trim() || null,
       userId: ctx.userId,
+      saleId: m.saleId ?? null,
     },
   });
 }

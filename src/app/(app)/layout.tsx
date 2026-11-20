@@ -8,7 +8,7 @@ export default async function SignedInLayout({ children }: { children: React.Rea
   const { user } = await requireUser();
   return (
     <>
-      <header className="border-b border-line bg-surface">
+      <header className="border-b border-line bg-surface print:hidden">
         <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-3 px-4 py-3">
           <div className="flex items-center gap-4">
             <Link href="/dashboard" className="flex items-center gap-2 font-semibold">
@@ -18,11 +18,17 @@ export default async function SignedInLayout({ children }: { children: React.Rea
               <span className="max-w-[12rem] truncate">{user.business.name}</span>
             </Link>
             <nav className="flex gap-1 text-sm" aria-label="Main">
-              <Link href="/dashboard" className="rounded-md px-2 py-1 hover:bg-canvas">
-                Dashboard
+              <Link href="/sell" className="rounded-md bg-brand px-3 py-1 font-medium text-white hover:bg-brand-dark">
+                Sell
+              </Link>
+              <Link href="/sales" className="rounded-md px-2 py-1 hover:bg-canvas">
+                Sales
               </Link>
               <Link href="/products" className="rounded-md px-2 py-1 hover:bg-canvas">
                 Products
+              </Link>
+              <Link href="/dashboard" className="rounded-md px-2 py-1 hover:bg-canvas">
+                Dashboard
               </Link>
             </nav>
           </div>

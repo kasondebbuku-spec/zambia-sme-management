@@ -6,10 +6,13 @@
 
 Many small shops in Lusaka, Ndola or Kabwe track stock in an exercise book, if at all. The owner can't tell what's running low until a customer asks for it, can't tell how much money is sitting on the shelves, and can't explain where missing stock went. Enterprise software is too expensive and too complicated. Kantemba is a simple web app that runs on the phone the shopkeeper already has.
 
-> **Status: milestone 1 of 4, foundation and inventory.** Next: point of sale with safe transactions, then customers, suppliers and purchasing, then reports and a live demo. See the [roadmap](#roadmap).
+> **Status: milestone 2 of 4.** Inventory and point of sale work end to end. Next: customers, suppliers and purchasing, then reports and a live demo. See the [roadmap](#roadmap).
 
 ## What it does today
 
+- **Sell from a phone.** Search or scan a barcode, build a basket, take cash (with change worked out) or mobile money (with the transaction ID), and get a printable receipt.
+- **Today's takings:** sales, cash to match the drawer, mobile money, and profit (owners and managers only).
+- **Cancel a sale** (owners and managers): it's kept, marked cancelled with who and why, and every item goes back on the shelf.
 - **Register a business** and become its owner. Roles: owner, manager, cashier.
 - **Products** with a code, category, unit (bag, packet, bottle…), cost and selling price, with profit per unit and margin shown.
 - **Stock you can trust.** Every change is recorded in a ledger: opening stock, received from a supplier, returned, damaged, or corrected after a count. Each entry has who did it, when, why and the balance after. The current quantity always equals the sum of the ledger.
@@ -34,6 +37,26 @@ WHERE id = $1 AND "businessId" = $2 AND "stockQty" >= 3
 PostgreSQL locks the row for the first sale and re-checks the condition for the second, so only one can succeed. A test fires **10 simultaneous sales at 5 units of stock** and checks that exactly 5 succeed, the other 5 are refused as insufficient stock, stock ends at 0, and the ledger still adds up. See [`src/server/stock.ts`](src/server/stock.ts).
 
 A **physical count** locks the row with `SELECT … FOR UPDATE` before working out the difference, so a sale that lands mid-count isn't overwritten.
+
+### A sale is all or nothing
+
+Checkout is one database transaction:
+
+1. load the products and **price the basket from the database**, so a tampered request can't sell anything for K1
+2. check the payment covers the total
+3. take the next receipt number
+4. write the sale and its lines
+5. take each item off the shelf with the race-safe update above
+
+If step 5 fails on the third item because someone just sold the last one, PostgreSQL undoes steps 3–5 completely: no sale, no stock taken, and the receipt number isn't used, so **receipts have no gaps**. Tests cover this, two tills fighting over the last items (one wins), six simultaneous sales (receipts 1–6, no duplicates), and receipt numbers per shop. See [`src/server/sales.ts`](src/server/sales.ts).
+
+### No double sales on a slow connection
+
+The till makes a random ID for each basket and sends it with the sale. If the network is slow and the cashier taps **Complete sale** twice, or the browser retries, the second request finds the first sale and returns it. A unique database rule on `(businessId, clientRef)` catches the case where both copies arrive at the same instant. Tested both ways.
+
+### Receipts don't change when prices do
+
+Each sale line copies the product's name, price and cost at the moment of sale. Raising the price of sugar next week doesn't rewrite last week's receipts or profit.
 
 ### An append-only stock ledger
 
@@ -76,6 +99,10 @@ erDiagram
     Business ||--o{ Product : sells
     Product ||--o{ StockMovement : "history of"
     User ||--o{ StockMovement : records
+    Business ||--o{ Sale : "receipts"
+    Sale ||--o{ SaleItem : lines
+    Product ||--o{ SaleItem : "sold as"
+    Sale ||--o{ StockMovement : "takes stock"
 
     Product {
       string sku "unique per business"
@@ -93,6 +120,19 @@ erDiagram
     User {
       enum role "OWNER MANAGER CASHIER"
     }
+    Sale {
+      int receiptNo "1, 2, 3 per shop, no gaps"
+      string clientRef "unique per shop: stops double sales"
+      int totalNgwee
+      int costTotalNgwee
+      enum method "CASH MOBILE_MONEY"
+      enum status "COMPLETED VOIDED"
+    }
+    SaleItem {
+      string name "copied at time of sale"
+      int unitPriceNgwee "copied at time of sale"
+      int quantity
+    }
 ```
 
 Full schema: [`prisma/schema.prisma`](prisma/schema.prisma).
@@ -103,7 +143,9 @@ Full schema: [`prisma/schema.prisma`](prisma/schema.prisma).
 npm test
 ```
 
-66 tests with Vitest. Most run against a real PostgreSQL database:
+87 tests with Vitest. Most run against a real PostgreSQL database:
+
+- **Sales:** totals, change and stock taken; prices always from the database; same product twice becomes one line; short cash refused; mobile-money references; **rollback when one item runs short** (other items restored, no receipt number used); two tills and the last items; six simultaneous sales get receipts 1–6; double taps and simultaneous duplicates make one sale; old receipts keep old prices; cancelling returns stock once even if two managers press it; shops can't sell or cancel each other's sales; today's totals by payment method; Lusaka midnight
 
 - **Stock:** opening stock recorded as a movement; restock, sale, damage and count history with running balances; refusing to oversell with a clear message; **10 simultaneous sales against 5 units**; a sale racing a physical count; movement direction rules; cashiers can't adjust stock; shops can't touch each other's products; dashboard totals and low-stock order
 - **Products:** duplicate codes per shop (allowed across shops), selling below cost refused, editing details never changes stock
@@ -135,12 +177,14 @@ Sign in as `owner@kantemba.test`, `manager@kantemba.test` or `cashier@kantemba.t
 ```
 prisma/schema.prisma         data model
 prisma/seed.ts               demo shop
+src/server/sales.ts          checkout transaction, double-sale protection, cancelling
 src/server/stock.ts          stock ledger, race-safe updates, counts
 src/server/products.ts       products, validation, dashboard figures
 src/server/accounts.ts       sign-up, password checks, attempt limit
 src/server/session.ts        signed session cookie
 src/app/actions/             server actions behind each form
-src/app/(app)/               signed-in pages: dashboard, products
+src/app/(app)/               signed-in pages: sell, sales, receipts, products, dashboard
+src/components/SellScreen    the till: basket, barcode entry, payment
 src/lib/money.ts             ngwee formatting and parsing
 tests/                       unit and database tests
 ```
@@ -148,7 +192,7 @@ tests/                       unit and database tests
 ## Roadmap
 
 - [x] **1. Foundation and inventory:** sign-up and roles, products, stock ledger with race-safe updates, counts, low-stock alerts, tests, CI
-- [ ] **2. Point of sale:** a phone-friendly checkout; each sale checks stock, records the sale, reduces stock, records payment (cash or mobile money) and issues a receipt in **one transaction that rolls back completely if any step fails**
+- [x] **2. Point of sale:** phone-friendly till with barcode entry, cash and mobile money, receipts, cancelling, today's takings; each sale is **one transaction that rolls back completely if any step fails**, with no double sales on a slow connection
 - [ ] **3. Customers, suppliers and purchasing:** restocking against supplier orders, customer records and money owed
 - [ ] **4. Reports and launch:** daily sales, profit and loss, best sellers, staff accounts, live demo
 

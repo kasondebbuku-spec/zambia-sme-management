@@ -27,7 +27,11 @@ async function main() {
   const hash = await bcrypt.hash(password, 12);
 
   const existing = await db.user.findUnique({ where: { email } });
-  if (existing) await db.business.delete({ where: { id: existing.businessId } }); // cascades to everything
+  if (existing) {
+    // Sale lines protect their products from deletion, so clear the sales first.
+    await db.sale.deleteMany({ where: { businessId: existing.businessId } });
+    await db.business.delete({ where: { id: existing.businessId } }); // cascades to everything else
+  }
 
   const business = await db.business.create({ data: { name: "Mwila General Dealers", town: "Lusaka", phone: "0971234567" } });
   const [owner] = await Promise.all([
