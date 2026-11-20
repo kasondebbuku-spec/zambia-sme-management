@@ -1,0 +1,99 @@
+// Kantemba data model.
+//
+// A Business (a shop) has Users and Products. Every change to a product's stock is written
+// to StockMovement, an append-only ledger: the quantity on Product is a running total that
+// always equals the sum of its movements. Money is stored in ngwee (K1 = 100 ngwee) so
+// amounts are whole numbers and never suffer floating-point rounding.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  OWNER // everything, including staff and prices
+  MANAGER // stock, products and reports
+  CASHIER // sells; can't change prices or adjust stock
+}
+
+enum MovementType {
+  OPENING // stock counted when the product was added
+  RESTOCK // received from a supplier
+  SALE // sold to a customer
+  RETURN // returned by a customer
+  DAMAGE // broken, expired or spoiled
+  ADJUSTMENT // correction after a physical count
+}
+
+model Business {
+  id        String   @id @default(cuid())
+  name      String
+  phone     String?
+  town      String?
+  createdAt DateTime @default(now())
+
+  users     User[]
+  products  Product[]
+  movements StockMovement[]
+}
+
+model User {
+  id           String   @id @default(cuid())
+  businessId   String
+  business     Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  email        String   @unique
+  name         String
+  passwordHash String
+  role         Role
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+
+  movements StockMovement[]
+
+  @@index([businessId])
+}
+
+model Product {
+  id           String   @id @default(cuid())
+  businessId   String
+  business     Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  sku          String // shop's own code or barcode, unique within the business
+  name         String
+  category     String   @default("General")
+  unit         String   @default("each") // each, packet, bag, bottle, kg
+  costNgwee    Int // what the shop pays per unit
+  priceNgwee   Int // what the customer pays per unit
+  stockQty     Int      @default(0) // running total of movements; never negative
+  reorderLevel Int      @default(0) // alert when stock is at or below this
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  movements StockMovement[]
+
+  @@unique([businessId, sku])
+  @@index([businessId, name])
+}
+
+model StockMovement {
+  id           String       @id @default(cuid())
+  businessId   String
+  business     Business     @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  productId    String
+  product      Product      @relation(fields: [productId], references: [id], onDelete: Cascade)
+  type         MovementType
+  quantity     Int // signed: +10 restock, -2 sale
+  balanceAfter Int // stock right after this movement, for an easy-to-read history
+  costNgwee    Int? // unit cost at the time, for restocks
+  note         String?
+  userId       String?
+  user         User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+  createdAt    DateTime     @default(now())
+
+  @@index([productId, createdAt])
+  @@index([businessId, createdAt])
+}
