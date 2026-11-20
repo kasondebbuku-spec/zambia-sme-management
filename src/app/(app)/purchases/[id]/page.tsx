@@ -29,7 +29,7 @@ export default async function PurchasePage({ params }: { params: Promise<{ id: s
       </Link>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold">
+          <h1 className="text-2xl font-bold tracking-tight">
             PO-{po.number} · {po.supplier.name}
           </h1>
           <p className="mt-1 text-sm text-muted">
@@ -43,7 +43,7 @@ export default async function PurchasePage({ params }: { params: Promise<{ id: s
       </div>
 
       {po.status === "ORDERED" ? (
-        <section className="rounded-xl border border-line bg-surface p-6">
+        <section className="card p-6">
           <h2 className="mb-4 text-lg font-semibold">Check the delivery</h2>
           <ReceiveForm
             purchaseId={po.id}
@@ -59,7 +59,7 @@ export default async function PurchasePage({ params }: { params: Promise<{ id: s
           />
         </section>
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-line bg-surface">
+        <div className="overflow-x-auto card">
           <table className="w-full text-sm">
             <thead className="border-b border-line bg-canvas text-left text-xs uppercase tracking-wide text-muted">
               <tr>

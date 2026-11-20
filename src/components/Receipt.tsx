@@ -5,7 +5,7 @@ const when = new Intl.DateTimeFormat("en-GB", { timeZone: "Africa/Lusaka", day: 
 
 export function Receipt({ sale }: { sale: SaleWithItems }) {
   return (
-    <article className="mx-auto max-w-sm rounded-xl border border-line bg-surface p-6 font-mono text-sm print:max-w-none print:border-0 print:p-0" aria-label={`Receipt ${sale.receiptNo}`}>
+    <article className="mx-auto max-w-sm card p-6 font-mono text-sm print:max-w-none print:border-0 print:p-0" aria-label={`Receipt ${sale.receiptNo}`}>
       <header className="text-center">
         <div className="text-base font-bold">{sale.business.name}</div>
         {(sale.business.town || sale.business.phone) && <div className="text-xs">{[sale.business.town, sale.business.phone].filter(Boolean).join(" · ")}</div>}

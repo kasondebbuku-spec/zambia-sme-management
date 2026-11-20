@@ -21,7 +21,7 @@ export default async function SellPage() {
 
   return (
     <div className="space-y-4">
-      <h1 className="text-2xl font-semibold">Sell</h1>
+      <h1 className="text-2xl font-bold tracking-tight">Sell</h1>
       {forTill.length === 0 ? <p className="text-muted">Add products before selling.</p> : <SellScreen products={forTill} customers={onAccount} />}
     </div>
   );

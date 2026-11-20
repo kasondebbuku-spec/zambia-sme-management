@@ -26,14 +26,14 @@ export default async function SalePage({ params, searchParams }: { params: Promi
         </Link>
         <div className="flex gap-2">
           <PrintButton />
-          <Link href="/sell" className="rounded-md bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-dark">
+          <Link href="/sell" className="rounded-xl bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-dark">
             New sale
           </Link>
         </div>
       </div>
 
       {isNew && sale.status === "COMPLETED" && (
-        <p role="status" className="mx-auto max-w-sm rounded-md bg-good-soft px-3 py-2 text-center text-sm text-good print:hidden">
+        <p role="status" className="mx-auto max-w-sm rounded-xl bg-good-soft px-3 py-2 text-center text-sm text-good print:hidden">
           Sale recorded.{sale.method === "CASH" && sale.changeNgwee ? " Give the customer their change." : ""}
         </p>
       )}

@@ -17,7 +17,7 @@ export default async function CustomersPage({ searchParams }: { searchParams: Pr
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-baseline justify-between gap-3">
-        <h1 className="text-2xl font-semibold">Customers</h1>
+        <h1 className="text-2xl font-bold tracking-tight">Customers</h1>
         {totalOwed > 0 && (
           <p className="text-sm text-muted">
             Owed to you: <strong className="tabular-nums text-ink">{formatKwacha(totalOwed)}</strong>
@@ -29,14 +29,14 @@ export default async function CustomersPage({ searchParams }: { searchParams: Pr
         <label htmlFor="q" className="sr-only">
           Search customers
         </label>
-        <input id="q" name="q" defaultValue={q} placeholder="Search by name or phone" className="min-w-0 flex-1 rounded-md border border-line bg-surface px-3 py-2" />
-        <button className="rounded-md border border-line bg-surface px-4 py-2 text-sm hover:bg-canvas">Search</button>
+        <input id="q" name="q" defaultValue={q} placeholder="Search by name or phone" className="min-w-0 flex-1 rounded-xl border border-line bg-surface px-3 py-2" />
+        <button className="rounded-xl border border-line bg-surface px-4 py-2 text-sm hover:bg-canvas">Search</button>
       </form>
 
       {customers.length === 0 ? (
-        <p className="rounded-xl border border-dashed border-line p-6 text-center text-muted">{q ? "No customers match." : "No customers yet. Add regulars who buy on credit."}</p>
+        <p className="rounded-2xl border-2 border-dashed border-line p-6 text-center text-muted">{q ? "No customers match." : "No customers yet. Add regulars who buy on credit."}</p>
       ) : (
-        <ul className="divide-y divide-line overflow-hidden rounded-xl border border-line bg-surface">
+        <ul className="divide-y divide-line overflow-hidden card">
           {customers.map((c) => {
             const full = c.creditLimitNgwee > 0 && c.balanceNgwee >= c.creditLimitNgwee;
             return (
@@ -60,7 +60,7 @@ export default async function CustomersPage({ searchParams }: { searchParams: Pr
       )}
 
       {user.role !== "CASHIER" && (
-        <section className="rounded-xl border border-line bg-surface p-6">
+        <section className="card p-6">
           <h2 className="mb-4 text-lg font-semibold">Add a customer</h2>
           <SimpleForm
             action={addCustomer}

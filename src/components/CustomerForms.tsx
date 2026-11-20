@@ -19,7 +19,7 @@ export function PaymentForm({ action, owes }: { action: Action; owes: string }) 
           ["CASH", "Cash"],
           ["MOBILE_MONEY", "Mobile money"],
         ].map(([value, label]) => (
-          <label key={value} className="flex items-center gap-2 rounded-md border border-line px-3 py-2">
+          <label key={value} className="flex items-center gap-2 rounded-xl border border-line px-3 py-2">
             <input type="radio" name="method" value={value} checked={method === value} onChange={() => setMethod(value!)} /> {label}
           </label>
         ))}

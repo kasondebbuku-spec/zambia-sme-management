@@ -46,14 +46,14 @@ export function PurchaseOrderForm({ suppliers, products }: { suppliers: { id: st
   }
 
   if (suppliers.length === 0) return <p className="text-muted">Add a supplier first.</p>;
-  const cell = "rounded-md border border-line px-2 py-1.5 text-right tabular-nums w-24";
+  const cell = "rounded-xl border border-line px-2 py-1.5 text-right tabular-nums w-24";
 
   return (
     <div className="space-y-5">
       <div className="grid gap-4 sm:grid-cols-2">
         <label className="space-y-1 text-sm">
           <span className="block font-medium">Supplier</span>
-          <select value={supplierId} onChange={(e) => setSupplierId(e.target.value)} className="w-full rounded-md border border-line bg-surface px-3 py-2">
+          <select value={supplierId} onChange={(e) => setSupplierId(e.target.value)} className="w-full rounded-xl border border-line bg-surface px-3 py-2">
             {suppliers.map((s) => (
               <option key={s.id} value={s.id}>
                 {s.name}
@@ -63,7 +63,7 @@ export function PurchaseOrderForm({ suppliers, products }: { suppliers: { id: st
         </label>
         <label className="space-y-1 text-sm">
           <span className="block font-medium">Note</span>
-          <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Deliver by Friday" className="w-full rounded-md border border-line px-3 py-2" />
+          <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Deliver by Friday" className="w-full rounded-xl border border-line px-3 py-2" />
         </label>
       </div>
 
@@ -122,7 +122,7 @@ export function PurchaseOrderForm({ suppliers, products }: { suppliers: { id: st
       <div className="flex flex-wrap items-end justify-between gap-4">
         <label className="space-y-1 text-sm">
           <span className="block font-medium">Add a product</span>
-          <select value={adding} onChange={(e) => add(e.target.value)} className="rounded-md border border-line bg-surface px-3 py-2">
+          <select value={adding} onChange={(e) => add(e.target.value)} className="rounded-xl border border-line bg-surface px-3 py-2">
             <option value="">Choose…</option>
             {products
               .filter((p) => !lines.some((l) => l.productId === p.id))
@@ -135,16 +135,16 @@ export function PurchaseOrderForm({ suppliers, products }: { suppliers: { id: st
         </label>
         <div className="text-right">
           <div className="text-sm text-muted">Order total</div>
-          <div className="text-2xl font-semibold tabular-nums">{formatKwacha(total)}</div>
+          <div className="text-2xl font-bold tracking-tight tabular-nums">{formatKwacha(total)}</div>
         </div>
       </div>
 
       {error && (
-        <p role="alert" className="rounded-md bg-danger-soft px-3 py-2 text-sm text-danger">
+        <p role="alert" className="rounded-xl bg-danger-soft px-3 py-2 text-sm text-danger">
           {error}
         </p>
       )}
-      <button type="button" onClick={submit} disabled={!valid || pending} className="rounded-md bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-dark disabled:opacity-50">
+      <button type="button" onClick={submit} disabled={!valid || pending} className="rounded-xl bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-dark disabled:opacity-50">
         {pending ? "Saving…" : "Place order"}
       </button>
     </div>

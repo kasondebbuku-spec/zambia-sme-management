@@ -15,9 +15,9 @@ export default async function ProductsPage({ searchParams }: { searchParams: Pro
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-semibold">Products</h1>
+        <h1 className="text-2xl font-bold tracking-tight">Products</h1>
         {user.role !== "CASHIER" && (
-          <Link href="/products/new" className="rounded-md bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-dark">
+          <Link href="/products/new" className="rounded-xl bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-dark">
             Add product
           </Link>
         )}
@@ -27,19 +27,19 @@ export default async function ProductsPage({ searchParams }: { searchParams: Pro
         <label htmlFor="q" className="sr-only">
           Search products
         </label>
-        <input id="q" name="q" defaultValue={q} placeholder="Search by name, code or category" className="min-w-0 flex-1 rounded-md border border-line bg-surface px-3 py-2" />
+        <input id="q" name="q" defaultValue={q} placeholder="Search by name, code or category" className="min-w-0 flex-1 rounded-xl border border-line bg-surface px-3 py-2" />
         <label className="flex items-center gap-2 text-sm">
           <input type="checkbox" name="low" value="1" defaultChecked={lowOnly} /> Running low only
         </label>
-        <button className="rounded-md border border-line bg-surface px-4 py-2 text-sm hover:bg-canvas">Search</button>
+        <button className="rounded-xl border border-line bg-surface px-4 py-2 text-sm hover:bg-canvas">Search</button>
       </form>
 
       {products.length === 0 ? (
-        <p className="rounded-xl border border-dashed border-line p-6 text-center text-muted">
+        <p className="rounded-2xl border-2 border-dashed border-line p-6 text-center text-muted">
           {q || lowOnly ? "No products match." : "No products yet."}
         </p>
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-line bg-surface">
+        <div className="overflow-x-auto card">
           <table className="w-full text-sm">
             <thead className="border-b border-line bg-canvas text-left text-xs uppercase tracking-wide text-muted">
               <tr>

@@ -15,8 +15,8 @@ export default async function NewProductPage() {
       <Link href="/products" className="text-sm text-muted hover:text-ink">
         ← Products
       </Link>
-      <h1 className="text-2xl font-semibold">Add a product</h1>
-      <div className="rounded-xl border border-line bg-surface p-6">
+      <h1 className="text-2xl font-bold tracking-tight">Add a product</h1>
+      <div className="card p-6">
         <ProductForm action={addProduct} isNew />
       </div>
     </div>

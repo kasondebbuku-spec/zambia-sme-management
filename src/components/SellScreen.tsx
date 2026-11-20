@@ -114,7 +114,7 @@ export function SellScreen({ products, customers }: { products: TillProduct[]; c
             }
           }}
           placeholder="Search name or code, or scan a barcode"
-          className="w-full rounded-md border border-line bg-surface px-3 py-3 text-base"
+          className="w-full rounded-xl border border-line bg-surface px-3 py-3 text-base"
         />
         <ul className="grid gap-2 sm:grid-cols-2">
           {matches.map((p) => {
@@ -143,7 +143,23 @@ export function SellScreen({ products, customers }: { products: TillProduct[]; c
         {matches.length === 0 && <p className="text-muted">No products match &ldquo;{search}&rdquo;.</p>}
       </section>
 
-      <section aria-labelledby="basket-heading" className="h-fit space-y-4 rounded-xl border border-line bg-surface p-4 lg:sticky lg:top-4">
+      {/* On phones the basket sits below the product list, so a bar above the tab bar shows
+          what's in it and jumps there. */}
+      {lines.length > 0 && (
+        <button
+          type="button"
+          onClick={() => document.getElementById("basket")?.scrollIntoView({ behavior: "smooth", block: "start" })}
+          className="fixed inset-x-3 bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-20 flex items-center justify-between rounded-2xl bg-forest px-4 py-3 text-white shadow-[0_14px_30px_-12px_rgb(31_81_50/0.9)] lg:hidden"
+        >
+          <span className="text-sm">
+            {lines.reduce((n, l) => n + l.quantity, 0)} {lines.reduce((n, l) => n + l.quantity, 0) === 1 ? "item" : "items"} ·{" "}
+            <strong className="tabular-nums">{formatKwacha(total)}</strong>
+          </span>
+          <span className="text-sm font-semibold">View basket ↓</span>
+        </button>
+      )}
+
+      <section id="basket" aria-labelledby="basket-heading" className="h-fit scroll-mt-20 space-y-4 card p-4 lg:sticky lg:top-4">
         <h2 id="basket-heading" className="text-lg font-semibold">
           Basket
         </h2>
@@ -162,7 +178,7 @@ export function SellScreen({ products, customers }: { products: TillProduct[]; c
                   </div>
                 </div>
                 <div className="flex items-center gap-1">
-                  <button type="button" onClick={() => setQty(l.product.id, l.quantity - 1)} className="size-8 rounded-md border border-line" aria-label={`One less ${l.product.name}`}>
+                  <button type="button" onClick={() => setQty(l.product.id, l.quantity - 1)} className="size-8 rounded-xl border border-line" aria-label={`One less ${l.product.name}`}>
                     −
                   </button>
                   <span className="w-8 text-center tabular-nums" aria-label="Quantity">
@@ -172,7 +188,7 @@ export function SellScreen({ products, customers }: { products: TillProduct[]; c
                     type="button"
                     onClick={() => setQty(l.product.id, l.quantity + 1)}
                     disabled={l.quantity >= l.product.stockQty}
-                    className="size-8 rounded-md border border-line disabled:opacity-40"
+                    className="size-8 rounded-xl border border-line disabled:opacity-40"
                     aria-label={`One more ${l.product.name}`}
                   >
                     +
@@ -186,7 +202,7 @@ export function SellScreen({ products, customers }: { products: TillProduct[]; c
 
         <div className="flex items-baseline justify-between border-t border-line pt-3">
           <span className="font-medium">Total</span>
-          <span className="text-2xl font-semibold tabular-nums" aria-live="polite">
+          <span className="text-2xl font-bold tracking-tight tabular-nums" aria-live="polite">
             {formatKwacha(total)}
           </span>
         </div>
@@ -201,7 +217,7 @@ export function SellScreen({ products, customers }: { products: TillProduct[]; c
                 role="radio"
                 aria-checked={method === m}
                 onClick={() => setMethod(m)}
-                className={`rounded-md border px-3 py-2 text-sm font-medium ${method === m ? "border-brand bg-brand-soft text-brand-dark" : "border-line"}`}
+                className={`rounded-xl border px-3 py-2 text-sm font-medium ${method === m ? "border-brand bg-brand-soft text-brand-dark" : "border-line"}`}
               >
                 {m === "CASH" ? "Cash" : m === "MOBILE_MONEY" ? "Mobile money" : "On account"}
               </button>
@@ -218,10 +234,10 @@ export function SellScreen({ products, customers }: { products: TillProduct[]; c
                     value={tendered}
                     onChange={(e) => setTendered(e.target.value)}
                     aria-invalid={tendered !== "" && tenderedNgwee === null ? true : undefined}
-                    className="w-full rounded-md border border-line px-3 py-2 text-base"
+                    className="w-full rounded-xl border border-line px-3 py-2 text-base"
                   />
                 </label>
-                <button type="button" onClick={() => setTendered((total / 100).toFixed(2))} disabled={total === 0} className="rounded-md border border-line px-3 py-2 text-sm disabled:opacity-40">
+                <button type="button" onClick={() => setTendered((total / 100).toFixed(2))} disabled={total === 0} className="rounded-xl border border-line px-3 py-2 text-sm disabled:opacity-40">
                   Exact
                 </button>
               </div>
@@ -240,7 +256,7 @@ export function SellScreen({ products, customers }: { products: TillProduct[]; c
               ) : (
                 <label className="block space-y-1 text-sm">
                   <span className="block font-medium">Customer</span>
-                  <select value={customerId} onChange={(e) => setCustomerId(e.target.value)} className="w-full rounded-md border border-line bg-surface px-3 py-2 text-base">
+                  <select value={customerId} onChange={(e) => setCustomerId(e.target.value)} className="w-full rounded-xl border border-line bg-surface px-3 py-2 text-base">
                     <option value="">Choose…</option>
                     {customers.map((c) => (
                       <option key={c.id} value={c.id}>
@@ -262,18 +278,18 @@ export function SellScreen({ products, customers }: { products: TillProduct[]; c
               <p className="text-xs text-muted">Ask the customer to send the money, then type the transaction ID from the confirmation SMS.</p>
               <label className="block space-y-1 text-sm">
                 <span className="block font-medium">Transaction ID</span>
-                <input value={reference} onChange={(e) => setReference(e.target.value)} autoCapitalize="characters" className="w-full rounded-md border border-line px-3 py-2 text-base" />
+                <input value={reference} onChange={(e) => setReference(e.target.value)} autoCapitalize="characters" className="w-full rounded-xl border border-line px-3 py-2 text-base" />
               </label>
               <label className="block space-y-1 text-sm">
                 <span className="block font-medium">Customer&apos;s number (optional)</span>
-                <input value={phone} onChange={(e) => setPhone(e.target.value)} inputMode="tel" placeholder="097…" className="w-full rounded-md border border-line px-3 py-2 text-base" />
+                <input value={phone} onChange={(e) => setPhone(e.target.value)} inputMode="tel" placeholder="097…" className="w-full rounded-xl border border-line px-3 py-2 text-base" />
               </label>
             </div>
           )}
         </fieldset>
 
         {error && (
-          <p role="alert" className="rounded-md bg-danger-soft px-3 py-2 text-sm text-danger">
+          <p role="alert" className="rounded-xl bg-danger-soft px-3 py-2 text-sm text-danger">
             {error}
           </p>
         )}
@@ -282,7 +298,7 @@ export function SellScreen({ products, customers }: { products: TillProduct[]; c
           type="button"
           onClick={submit}
           disabled={!ready || pending}
-          className="w-full rounded-md bg-brand px-4 py-3 font-semibold text-white hover:bg-brand-dark disabled:opacity-50"
+          className="w-full rounded-xl bg-brand px-4 py-3 font-semibold text-white hover:bg-brand-dark disabled:opacity-50"
         >
           {pending ? "Recording…" : `Complete sale${total ? ` · ${formatKwacha(total)}` : ""}`}
         </button>

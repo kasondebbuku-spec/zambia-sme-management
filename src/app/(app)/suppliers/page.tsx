@@ -14,11 +14,11 @@ export default async function SuppliersPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-semibold">Suppliers</h1>
+      <h1 className="text-2xl font-bold tracking-tight">Suppliers</h1>
       {suppliers.length === 0 ? (
-        <p className="rounded-xl border border-dashed border-line p-6 text-center text-muted">No suppliers yet. Add the wholesalers you buy from.</p>
+        <p className="rounded-2xl border-2 border-dashed border-line p-6 text-center text-muted">No suppliers yet. Add the wholesalers you buy from.</p>
       ) : (
-        <ul className="divide-y divide-line overflow-hidden rounded-xl border border-line bg-surface">
+        <ul className="divide-y divide-line overflow-hidden card">
           {suppliers.map((s) => (
             <li key={s.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3">
               <div>
@@ -32,7 +32,7 @@ export default async function SuppliersPage() {
           ))}
         </ul>
       )}
-      <section className="rounded-xl border border-line bg-surface p-6">
+      <section className="card p-6">
         <h2 className="mb-4 text-lg font-semibold">Add a supplier</h2>
         <SimpleForm
           action={addSupplier}

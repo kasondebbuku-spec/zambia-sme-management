@@ -43,7 +43,7 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
         </Link>
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-semibold">{product.name}</h1>
+            <h1 className="text-2xl font-bold tracking-tight">{product.name}</h1>
             <p className="text-sm text-muted">
               {product.sku} · {product.category}
             </p>
@@ -65,7 +65,7 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
       </dl>
 
       {canManage && (
-        <section className="grid gap-6 rounded-xl border border-line bg-surface p-6 lg:grid-cols-2">
+        <section className="grid gap-6 card p-6 lg:grid-cols-2">
           <MovementForm action={stockMovement.bind(null, product.id)} unit={product.unit} />
           <CountForm action={stockCount.bind(null, product.id)} current={product.stockQty} />
         </section>
@@ -78,7 +78,7 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
         {history.length === 0 ? (
           <p className="text-muted">No stock recorded yet.</p>
         ) : (
-          <div className="overflow-x-auto rounded-xl border border-line bg-surface">
+          <div className="overflow-x-auto card">
             <table className="w-full text-sm">
               <thead className="border-b border-line bg-canvas text-left text-xs uppercase tracking-wide text-muted">
                 <tr>
@@ -121,7 +121,7 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
       </section>
 
       {canManage && (
-        <details className="rounded-xl border border-line bg-surface p-6">
+        <details className="card p-6">
           <summary className="cursor-pointer font-medium">Edit product details</summary>
           <div className="mt-4">
             <ProductForm
@@ -145,7 +145,7 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
 
 function Info({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-xl border border-line bg-surface p-4">
+    <div className="card p-4">
       <dt className="text-sm text-muted">{label}</dt>
       <dd className="mt-1 text-lg font-semibold tabular-nums">{value}</dd>
     </div>

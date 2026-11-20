@@ -18,21 +18,21 @@ export default async function PurchasesPage() {
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-semibold">Purchase orders</h1>
+        <h1 className="text-2xl font-bold tracking-tight">Purchase orders</h1>
         <div className="flex gap-2">
-          <Link href="/suppliers" className="rounded-md border border-line bg-surface px-4 py-2 text-sm hover:bg-canvas">
+          <Link href="/suppliers" className="rounded-xl border border-line bg-surface px-4 py-2 text-sm hover:bg-canvas">
             Suppliers
           </Link>
-          <Link href="/purchases/new" className="rounded-md bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-dark">
+          <Link href="/purchases/new" className="rounded-xl bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-dark">
             New order
           </Link>
         </div>
       </div>
 
       {purchases.length === 0 ? (
-        <p className="rounded-xl border border-dashed border-line p-6 text-center text-muted">No orders yet. When stock runs low, order more from a supplier here.</p>
+        <p className="rounded-2xl border-2 border-dashed border-line p-6 text-center text-muted">No orders yet. When stock runs low, order more from a supplier here.</p>
       ) : (
-        <ul className="divide-y divide-line overflow-hidden rounded-xl border border-line bg-surface">
+        <ul className="divide-y divide-line overflow-hidden card">
           {purchases.map((p) => (
             <li key={p.id}>
               <Link href={`/purchases/${p.id}`} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 hover:bg-canvas">

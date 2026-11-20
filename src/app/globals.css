@@ -1,21 +1,32 @@
 @import "tailwindcss";
 
+/* Kantemba "warm market" theme: cream paper, terracotta, deep green and ochre,
+   with a chitenge-inspired band. Colours are tokens, so every screen picks them up. */
 @theme {
-  --color-brand: #c2410c;
-  --color-brand-dark: #9a3412;
-  --color-brand-soft: #ffedd5;
-  --color-ink: #1c1917;
-  --color-muted: #78716c;
-  --color-line: #e7e5e4;
+  --color-brand: #b4441c; /* terracotta */
+  --color-brand-dark: #8f3412;
+  --color-brand-soft: #fbe6d9;
+  --color-forest: #1f5132; /* deep green */
+  --color-forest-soft: #e2efe5;
+  --color-ochre: #d99a2b;
+  --color-ochre-soft: #fbefd6;
+
+  --color-ink: #2b1d14; /* warm near-black */
+  --color-muted: #85725f;
+  --color-line: #ecdfcd;
   --color-surface: #ffffff;
-  --color-canvas: #fafaf9;
-  --color-good: #15803d;
-  --color-good-soft: #dcfce7;
-  --color-warn: #b45309;
-  --color-warn-soft: #fef3c7;
-  --color-danger: #b91c1c;
-  --color-danger-soft: #fee2e2;
+  --color-canvas: #faf4ea; /* cream */
+  --color-sand: #f4e9d8;
+
+  --color-good: #1f7a45;
+  --color-good-soft: #dcf0e2;
+  --color-warn: #b06a0a;
+  --color-warn-soft: #fcefd5;
+  --color-danger: #b42318;
+  --color-danger-soft: #fde4e1;
+
   --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --radius-card: 1.125rem;
 }
 
 body {
@@ -26,4 +37,32 @@ body {
 :focus-visible {
   outline: 2px solid var(--color-brand);
   outline-offset: 2px;
+}
+
+/* A white card with a soft, warm shadow. */
+@utility card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-card);
+  box-shadow:
+    0 1px 2px rgb(43 29 20 / 0.04),
+    0 8px 24px -16px rgb(43 29 20 / 0.18);
+}
+
+/* The chitenge band: diamonds and zigzags in terracotta, ochre and green on cream. */
+@utility chitenge {
+  background-color: var(--color-brand);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='48' height='24' viewBox='0 0 48 24'%3E%3Cpath d='M0 24 L12 12 L24 24 L36 12 L48 24 Z' fill='%231f5132'/%3E%3Cpath d='M0 0 L12 12 L24 0 L36 12 L48 0 Z' fill='%23d99a2b'/%3E%3Cpath d='M12 6 L18 12 L12 18 L6 12 Z M36 6 L42 12 L36 18 L30 12 Z' fill='%23faf4ea'/%3E%3Ccircle cx='24' cy='12' r='2' fill='%23faf4ea'/%3E%3Ccircle cx='0' cy='12' r='2' fill='%23faf4ea'/%3E%3Ccircle cx='48' cy='12' r='2' fill='%23faf4ea'/%3E%3C/svg%3E");
+  background-size: 48px 24px;
+}
+
+/* Numbers line up in columns. */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+@media print {
+  body {
+    background: white;
+  }
 }

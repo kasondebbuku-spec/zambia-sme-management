@@ -27,7 +27,7 @@ export function ReceiveForm({ purchaseId, items }: { purchaseId: string; items: 
     });
   }
 
-  const cell = "w-24 rounded-md border border-line px-2 py-1.5 text-right tabular-nums";
+  const cell = "w-24 rounded-xl border border-line px-2 py-1.5 text-right tabular-nums";
   return (
     <div className="space-y-4">
       <div className="overflow-x-auto rounded-xl border border-line">
@@ -92,7 +92,7 @@ export function ReceiveForm({ purchaseId, items }: { purchaseId: string; items: 
         old and new stock.
       </p>
       {error && (
-        <p role="alert" className="rounded-md bg-danger-soft px-3 py-2 text-sm text-danger">
+        <p role="alert" className="rounded-xl bg-danger-soft px-3 py-2 text-sm text-danger">
           {error}
         </p>
       )}
@@ -101,11 +101,11 @@ export function ReceiveForm({ purchaseId, items }: { purchaseId: string; items: 
           type="button"
           disabled={!valid || pending}
           onClick={() => run(() => receiveOrder(purchaseId, parsed.map((r) => ({ productId: r.productId, quantity: r.qty, unitCostNgwee: r.costNgwee! }))))}
-          className="rounded-md bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-dark disabled:opacity-50"
+          className="rounded-xl bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-dark disabled:opacity-50"
         >
           {pending ? "Saving…" : "Record delivery"}
         </button>
-        <button type="button" disabled={pending} onClick={() => run(() => cancelOrder(purchaseId))} className="rounded-md border border-line bg-surface px-4 py-2 text-sm text-danger hover:bg-danger-soft">
+        <button type="button" disabled={pending} onClick={() => run(() => cancelOrder(purchaseId))} className="rounded-xl border border-line bg-surface px-4 py-2 text-sm text-danger hover:bg-danger-soft">
           Cancel order
         </button>
       </div>
