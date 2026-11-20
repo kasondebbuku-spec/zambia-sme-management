@@ -59,6 +59,7 @@ export function Receipt({ sale }: { sale: SaleWithItems }) {
             <Row label="Ref" value={sale.paymentRef ?? ""} />
           </>
         )}
+        {sale.method !== "ON_ACCOUNT" && sale.customer && <Row label="Customer" value={sale.customer.name} />}
       </dl>
 
       {sale.status === "VOIDED" && sale.voidReason && (

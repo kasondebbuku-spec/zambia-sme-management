@@ -68,7 +68,10 @@ export default async function SalesPage() {
                   </td>
                   <td className="px-4 py-2 tabular-nums">{time.format(s.createdAt)}</td>
                   <td className="px-4 py-2">{s.cashier?.name ?? "—"}</td>
-                  <td className="px-4 py-2">{PAYMENT_LABEL[s.method]}</td>
+                  <td className="px-4 py-2">
+                    {PAYMENT_LABEL[s.method]}
+                    {s.customer && <span className="block text-xs text-muted">{s.customer.name}</span>}
+                  </td>
                   <td className={`px-4 py-2 text-right tabular-nums ${s.status === "VOIDED" ? "line-through" : "font-medium"}`}>{formatKwacha(s.totalNgwee)}</td>
                 </tr>
               ))}

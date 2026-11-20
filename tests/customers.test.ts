@@ -91,7 +91,7 @@ describe.skipIf(!hasTestDb)("customers and credit", () => {
       const theirSugar = (await createProduct(other.owner, { ...sugar, openingStock: 5 })).id;
       await expect(
         checkout(other.cashier, { clientRef: randomUUID(), items: [{ productId: theirSugar, quantity: 1 }], payment: { method: "ON_ACCOUNT", customerId } }),
-      ).rejects.toThrow("Customer not found");
+      ).rejects.toThrow("That customer no longer exists");
       expect((await db.product.findUniqueOrThrow({ where: { id: theirSugar } })).stockQty).toBe(5);
     });
   });

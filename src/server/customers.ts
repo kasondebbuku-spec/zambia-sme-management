@@ -11,31 +11,59 @@ const zambianPhone = z
   .string()
   .trim()
   .transform((s) => s.replace(/[\s-]/g, ""))
-  .refine((s) => s === "" || /^(?:\+?260|0)?[79]\d{8}$/.test(s), "Enter a Zambian mobile number")
+  .refine(
+    (s) => s === "" || /^(?:\+?260|0)?[79]\d{8}$/.test(s),
+    "Enter a Zambian mobile number",
+  )
   .transform((s) => (s === "" ? null : "0" + s.slice(-9))); // stored as 0971234567
 
 export const customerInput = z.object({
   name: z.string().trim().min(2, "Enter the customer's name").max(120),
   phone: zambianPhone.optional().transform((s) => s ?? null),
-  creditLimitNgwee: z.number().int().min(0, "The limit can't be negative").max(100_000_000),
+  creditLimitNgwee: z
+    .number()
+    .int()
+    .min(0, "The limit can't be negative")
+    .max(100_000_000),
 });
 
-export async function createCustomer(ctx: Ctx, input: z.input<typeof customerInput>) {
+export async function createCustomer(
+  ctx: Ctx,
+  input: z.input<typeof customerInput>,
+) {
   requireRole(ctx, "OWNER", "MANAGER");
   const data = customerInput.parse(input);
   try {
-    return await db.customer.create({ data: { ...data, businessId: ctx.businessId } });
+    return await db.customer.create({
+      data: { ...data, businessId: ctx.businessId },
+    });
   } catch (e) {
-    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") throw new DomainError("Another customer already has that phone number", "conflict");
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002")
+      throw new DomainError(
+        "Another customer already has that phone number",
+        "conflict",
+      );
     throw e;
   }
 }
 
 /** Lowering a limit below what's owed is allowed: it simply stops further credit. */
-export async function setCreditLimit(ctx: Ctx, customerId: string, creditLimitNgwee: number) {
+export async function setCreditLimit(
+  ctx: Ctx,
+  customerId: string,
+  creditLimitNgwee: number,
+) {
   requireRole(ctx, "OWNER", "MANAGER");
-  const limit = z.number().int().min(0).max(100_000_000).parse(creditLimitNgwee);
-  const res = await db.customer.updateMany({ where: { id: customerId, businessId: ctx.businessId }, data: { creditLimitNgwee: limit } });
+  const limit = z
+    .number()
+    .int()
+    .min(0)
+    .max(100_000_000)
+    .parse(creditLimitNgwee);
+  const res = await db.customer.updateMany({
+    where: { id: customerId, businessId: ctx.businessId },
+    data: { creditLimitNgwee: limit },
+  });
   if (res.count === 0) throw new DomainError("Customer not found", "not_found");
 }
 
@@ -56,46 +84,93 @@ export class CreditLimitError extends DomainError {
  * conditional UPDATE, "add K50 only if they'd still be within their limit", so two tills
  * can't both push a customer over it. Prisma can't compare two columns, hence raw SQL.
  */
-export async function chargeAccount(tx: Tx, ctx: Ctx, customerId: string, amountNgwee: number) {
+export async function chargeAccount(
+  tx: Tx,
+  ctx: Ctx,
+  customerId: string,
+  amountNgwee: number,
+) {
   const updated = await tx.$executeRaw`
     UPDATE "Customer" SET "balanceNgwee" = "balanceNgwee" + ${amountNgwee}
     WHERE id = ${customerId} AND "businessId" = ${ctx.businessId}
       AND "balanceNgwee" + ${amountNgwee} <= "creditLimitNgwee"`;
   if (updated === 0) {
-    const c = await tx.customer.findFirst({ where: { id: customerId, businessId: ctx.businessId } });
+    const c = await tx.customer.findFirst({
+      where: { id: customerId, businessId: ctx.businessId },
+    });
     if (!c) throw new DomainError("Customer not found", "not_found");
-    throw new CreditLimitError(c.name, c.balanceNgwee, c.creditLimitNgwee, amountNgwee);
+    throw new CreditLimitError(
+      c.name,
+      c.balanceNgwee,
+      c.creditLimitNgwee,
+      amountNgwee,
+    );
   }
 }
 
 /** Takes a cancelled on-account sale back off what the customer owes. */
-export async function uncharge(tx: Tx, customerId: string, amountNgwee: number) {
-  await tx.customer.update({ where: { id: customerId }, data: { balanceNgwee: { decrement: amountNgwee } } });
+export async function uncharge(
+  tx: Tx,
+  customerId: string,
+  amountNgwee: number,
+) {
+  await tx.customer.update({
+    where: { id: customerId },
+    data: { balanceNgwee: { decrement: amountNgwee } },
+  });
 }
 
 export const paymentInput = z.object({
   amountNgwee: z.number().int().positive("Enter an amount above zero"),
   method: z.enum(["CASH", "MOBILE_MONEY"]),
-  reference: z.string().trim().max(40).optional().transform((s) => s || null),
+  reference: z
+    .string()
+    .trim()
+    .max(40)
+    .optional()
+    .transform((s) => s || null),
 });
 
 /** A customer pays some or all of what they owe. They can't pay more than that. */
-export async function recordPayment(ctx: Ctx, customerId: string, input: z.input<typeof paymentInput>) {
+export async function recordPayment(
+  ctx: Ctx,
+  customerId: string,
+  input: z.input<typeof paymentInput>,
+) {
   const data = paymentInput.parse(input);
-  if (data.method === "MOBILE_MONEY" && !data.reference) throw new DomainError("Enter the mobile-money transaction ID", "invalid");
+  if (data.method === "MOBILE_MONEY" && !data.reference)
+    throw new DomainError("Enter the mobile-money transaction ID", "invalid");
 
   return db.$transaction(async (tx) => {
     const res = await tx.customer.updateMany({
-      where: { id: customerId, businessId: ctx.businessId, balanceNgwee: { gte: data.amountNgwee } },
+      where: {
+        id: customerId,
+        businessId: ctx.businessId,
+        balanceNgwee: { gte: data.amountNgwee },
+      },
       data: { balanceNgwee: { decrement: data.amountNgwee } },
     });
-    const c = await tx.customer.findFirst({ where: { id: customerId, businessId: ctx.businessId } });
+    const c = await tx.customer.findFirst({
+      where: { id: customerId, businessId: ctx.businessId },
+    });
     if (!c) throw new DomainError("Customer not found", "not_found");
     if (res.count === 0) {
-      throw new DomainError(c.balanceNgwee === 0 ? `${c.name} doesn't owe anything` : `${c.name} only owes ${formatKwacha(c.balanceNgwee)}`, "invalid");
+      throw new DomainError(
+        c.balanceNgwee === 0
+          ? `${c.name} doesn't owe anything`
+          : `${c.name} only owes ${formatKwacha(c.balanceNgwee)}`,
+        "invalid",
+      );
     }
     return tx.customerPayment.create({
-      data: { customerId, amountNgwee: data.amountNgwee, method: data.method, reference: data.reference?.toUpperCase() ?? null, balanceAfter: c.balanceNgwee, receivedById: ctx.userId },
+      data: {
+        customerId,
+        amountNgwee: data.amountNgwee,
+        method: data.method,
+        reference: data.reference?.toUpperCase() ?? null,
+        balanceAfter: c.balanceNgwee,
+        receivedById: ctx.userId,
+      },
     });
   });
 }
@@ -105,7 +180,14 @@ export function listCustomers(ctx: Ctx, search?: string) {
   return db.customer.findMany({
     where: {
       businessId: ctx.businessId,
-      ...(q ? { OR: [{ name: { contains: q, mode: "insensitive" } }, { phone: { contains: q.replace(/\s/g, "") } }] } : {}),
+      ...(q
+        ? {
+            OR: [
+              { name: { contains: q, mode: "insensitive" } },
+              { phone: { contains: q.replace(/\s/g, "") } },
+            ],
+          }
+        : {}),
     },
     orderBy: [{ balanceNgwee: "desc" }, { name: "asc" }],
   });
@@ -125,26 +207,195 @@ export type StatementLine = {
  * sale shows as the original charge followed by a reversal, so the history stays honest.
  */
 export async function statement(ctx: Ctx, customerId: string) {
-  const customer = await db.customer.findFirst({ where: { id: customerId, businessId: ctx.businessId } });
+  const customer = await db.customer.findFirst({
+    where: { id: customerId, businessId: ctx.businessId },
+  });
   if (!customer) throw new DomainError("Customer not found", "not_found");
 
   const [sales, payments] = await Promise.all([
-    db.sale.findMany({ where: { customerId, method: "ON_ACCOUNT" }, select: { id: true, receiptNo: true, totalNgwee: true, createdAt: true, status: true, voidedAt: true } }),
-    db.customerPayment.findMany({ where: { customerId }, include: { receivedBy: { select: { name: true } } } }),
+    db.sale.findMany({
+      where: { customerId, method: "ON_ACCOUNT" },
+      select: {
+        id: true,
+        receiptNo: true,
+        totalNgwee: true,
+        createdAt: true,
+        status: true,
+        voidedAt: true,
+      },
+    }),
+    db.customerPayment.findMany({
+      where: { customerId },
+      include: { receivedBy: { select: { name: true } } },
+    }),
   ]);
 
   const events: Omit<StatementLine, "balanceNgwee">[] = [];
   for (const s of sales) {
-    events.push({ at: s.createdAt, kind: "sale", description: `Receipt #${s.receiptNo}`, amountNgwee: s.totalNgwee, link: `/sales/${s.id}` });
-    if (s.status === "VOIDED") events.push({ at: s.voidedAt ?? s.createdAt, kind: "cancelled", description: `Receipt #${s.receiptNo} cancelled`, amountNgwee: -s.totalNgwee, link: `/sales/${s.id}` });
+    events.push({
+      at: s.createdAt,
+      kind: "sale",
+      description: `Receipt #${s.receiptNo}`,
+      amountNgwee: s.totalNgwee,
+      link: `/sales/${s.id}`,
+    });
+    if (s.status === "VOIDED")
+      events.push({
+        at: s.voidedAt ?? s.createdAt,
+        kind: "cancelled",
+        description: `Receipt #${s.receiptNo} cancelled`,
+        amountNgwee: -s.totalNgwee,
+        link: `/sales/${s.id}`,
+      });
   }
   for (const p of payments) {
-    const how = p.method === "CASH" ? "Cash" : `Mobile money ${p.reference ?? ""}`.trim();
-    events.push({ at: p.createdAt, kind: "payment", description: `Payment · ${how}${p.receivedBy ? ` · taken by ${p.receivedBy.name}` : ""}`, amountNgwee: -p.amountNgwee });
+    const how =
+      p.method === "CASH" ? "Cash" : `Mobile money ${p.reference ?? ""}`.trim();
+    events.push({
+      at: p.createdAt,
+      kind: "payment",
+      description: `Payment · ${how}${p.receivedBy ? ` · taken by ${p.receivedBy.name}` : ""}`,
+      amountNgwee: -p.amountNgwee,
+    });
   }
   events.sort((a, b) => a.at.getTime() - b.at.getTime());
 
   let balance = 0;
-  const lines: StatementLine[] = events.map((e) => ({ ...e, balanceNgwee: (balance += e.amountNgwee) }));
+  const lines: StatementLine[] = events.map((e) => ({
+    ...e,
+    balanceNgwee: (balance += e.amountNgwee),
+  }));
   return { customer, lines, matches: balance === customer.balanceNgwee };
+}
+
+/**
+ * Adds a customer from the till, so any cashier can do it mid-sale. They start cash only:
+ * giving credit stays an owner's or manager's decision. If the phone number is already on
+ * file, that customer is returned instead of a duplicate.
+ */
+export async function quickAddCustomer(
+  ctx: Ctx,
+  input: { name: string; phone?: string },
+) {
+  requireRole(ctx, "OWNER", "MANAGER", "CASHIER");
+  const data = customerInput.parse({ ...input, creditLimitNgwee: 0 });
+  if (data.phone) {
+    const existing = await db.customer.findFirst({
+      where: { businessId: ctx.businessId, phone: data.phone },
+    });
+    if (existing) return { customer: existing, existed: true };
+  }
+  try {
+    return {
+      customer: await db.customer.create({
+        data: { ...data, businessId: ctx.businessId },
+      }),
+      existed: false,
+    };
+  } catch (e) {
+    // Another till added the same number a moment ago.
+    if (
+      e instanceof Prisma.PrismaClientKnownRequestError &&
+      e.code === "P2002" &&
+      data.phone
+    ) {
+      return {
+        customer: await db.customer.findFirstOrThrow({
+          where: { businessId: ctx.businessId, phone: data.phone },
+        }),
+        existed: true,
+      };
+    }
+    throw e;
+  }
+}
+
+/** What a customer buys: completed sales of every kind, their favourite products and recent visits. */
+export async function customerHistory(ctx: Ctx, customerId: string) {
+  const where = {
+    businessId: ctx.businessId,
+    customerId,
+    status: "COMPLETED" as const,
+  };
+  const [totals, last, top, recent] = await Promise.all([
+    db.sale.aggregate({ where, _sum: { totalNgwee: true }, _count: true }),
+    db.sale.findFirst({
+      where,
+      orderBy: { createdAt: "desc" },
+      select: { createdAt: true },
+    }),
+    db.saleItem.groupBy({
+      by: ["productId"],
+      where: { sale: where },
+      _sum: { quantity: true, lineTotalNgwee: true },
+      orderBy: [{ _sum: { quantity: "desc" } }, { productId: "asc" }],
+      take: 5,
+    }),
+    db.sale.findMany({
+      where: { businessId: ctx.businessId, customerId },
+      orderBy: { createdAt: "desc" },
+      take: 10,
+      select: {
+        id: true,
+        receiptNo: true,
+        createdAt: true,
+        totalNgwee: true,
+        method: true,
+        status: true,
+        _count: { select: { items: true } },
+      },
+    }),
+  ]);
+  const names = new Map(
+    (
+      await db.product.findMany({
+        where: { id: { in: top.map((t) => t.productId) } },
+        select: { id: true, name: true, unit: true },
+      })
+    ).map((p) => [p.id, p]),
+  );
+  return {
+    visits: totals._count,
+    spentNgwee: totals._sum.totalNgwee ?? 0,
+    lastVisit: last?.createdAt ?? null,
+    favourites: top.map((t) => ({
+      productId: t.productId,
+      name: names.get(t.productId)?.name ?? "Removed product",
+      unit: names.get(t.productId)?.unit ?? "",
+      quantity: t._sum.quantity ?? 0,
+      spentNgwee: t._sum.lineTotalNgwee ?? 0,
+    })),
+    recent,
+  };
+}
+
+/** The customers who spent the most in [from, to), counting completed sales only. */
+export async function bestCustomers(ctx: Ctx, from: Date, to: Date, take = 5) {
+  const rows = await db.sale.groupBy({
+    by: ["customerId"],
+    where: {
+      businessId: ctx.businessId,
+      status: "COMPLETED",
+      customerId: { not: null },
+      createdAt: { gte: from, lt: to },
+    },
+    _sum: { totalNgwee: true },
+    _count: true,
+    orderBy: [{ _sum: { totalNgwee: "desc" } }, { customerId: "asc" }],
+    take,
+  });
+  const people = new Map(
+    (
+      await db.customer.findMany({
+        where: { id: { in: rows.map((r) => r.customerId!) } },
+        select: { id: true, name: true, phone: true },
+      })
+    ).map((c) => [c.id, c]),
+  );
+  return rows.flatMap((r) => {
+    const c = people.get(r.customerId!);
+    return c
+      ? [{ ...c, visits: r._count, spentNgwee: r._sum.totalNgwee ?? 0 }]
+      : [];
+  });
 }
