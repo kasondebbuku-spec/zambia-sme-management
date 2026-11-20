@@ -48,6 +48,11 @@ export function Receipt({ sale }: { sale: SaleWithItems }) {
             <Row label="Cash" value={formatKwacha(sale.tenderedNgwee ?? 0)} />
             <Row label="Change" value={formatKwacha(sale.changeNgwee ?? 0)} />
           </>
+        ) : sale.method === "ON_ACCOUNT" ? (
+          <>
+            <Row label="On account" value={sale.customer?.name ?? ""} />
+            {sale.status === "COMPLETED" && sale.customer && <Row label="Now owes" value={formatKwacha(sale.customer.balanceNgwee)} />}
+          </>
         ) : (
           <>
             <Row label="Mobile money" value={formatKwacha(sale.totalNgwee)} />

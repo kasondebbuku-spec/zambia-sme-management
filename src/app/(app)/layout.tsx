@@ -17,7 +17,7 @@ export default async function SignedInLayout({ children }: { children: React.Rea
               </span>
               <span className="max-w-[12rem] truncate">{user.business.name}</span>
             </Link>
-            <nav className="flex gap-1 text-sm" aria-label="Main">
+            <nav className="flex flex-wrap gap-1 text-sm" aria-label="Main">
               <Link href="/sell" className="rounded-md bg-brand px-3 py-1 font-medium text-white hover:bg-brand-dark">
                 Sell
               </Link>
@@ -27,6 +27,14 @@ export default async function SignedInLayout({ children }: { children: React.Rea
               <Link href="/products" className="rounded-md px-2 py-1 hover:bg-canvas">
                 Products
               </Link>
+              <Link href="/customers" className="rounded-md px-2 py-1 hover:bg-canvas">
+                Customers
+              </Link>
+              {user.role !== "CASHIER" && (
+                <Link href="/purchases" className="rounded-md px-2 py-1 hover:bg-canvas">
+                  Purchases
+                </Link>
+              )}
               <Link href="/dashboard" className="rounded-md px-2 py-1 hover:bg-canvas">
                 Dashboard
               </Link>

@@ -2,6 +2,7 @@ import { Prisma, type PaymentMethod } from "@prisma/client";
 import { z } from "zod";
 import { db } from "./db";
 import { DomainError, requireRole, type Ctx } from "./errors";
+import { chargeAccount, uncharge } from "./customers";
 import { moveStock } from "./stock";
 
 export const checkoutInput = z.object({
@@ -21,6 +22,8 @@ export const checkoutInput = z.object({
         .trim()
         .regex(/^[A-Za-z0-9.-]{6,40}$/, "Enter the transaction ID from the mobile-money SMS"),
     }),
+    // A regular customer pays later: the total is added to what they owe, within their limit.
+    z.object({ method: z.literal("ON_ACCOUNT"), customerId: z.string().min(1, "Choose the customer") }),
   ]),
   customerPhone: z
     .string()
@@ -36,6 +39,7 @@ const saleInclude = {
   items: { orderBy: { name: "asc" } },
   cashier: { select: { name: true } },
   voidedBy: { select: { name: true } },
+  customer: { select: { id: true, name: true, balanceNgwee: true } },
   business: { select: { name: true, town: true, phone: true } },
 } satisfies Prisma.SaleInclude;
 
@@ -48,6 +52,7 @@ export type SaleWithItems = Prisma.SaleGetPayload<{ include: typeof saleInclude 
  *   3. take the next receipt number
  *   4. write the sale and its lines
  *   5. take each item off the shelf with the race-safe stock update
+ *   6. for an on-account sale, add the total to what the customer owes, within their limit
  * If anything fails, for example the last bag was sold a moment ago, PostgreSQL undoes the
  * whole thing: no sale, no stock taken, no receipt number used.
  */
@@ -78,6 +83,7 @@ export async function checkout(ctx: Ctx, input: CheckoutInput): Promise<SaleWith
       const total = lines.reduce((n, l) => n + l.lineTotal, 0);
       const cost = lines.reduce((n, l) => n + l.lineCost, 0);
       const payment = paymentFields(data.payment, total);
+      const customerId = data.payment.method === "ON_ACCOUNT" ? data.payment.customerId : null;
 
       const { nextReceiptNo } = await tx.business.update({
         where: { id: ctx.businessId },
@@ -95,6 +101,7 @@ export async function checkout(ctx: Ctx, input: CheckoutInput): Promise<SaleWith
           totalNgwee: total,
           costTotalNgwee: cost,
           customerPhone: data.customerPhone ?? null,
+          customerId,
           ...payment,
           items: {
             create: lines.map((l) => ({
@@ -114,6 +121,7 @@ export async function checkout(ctx: Ctx, input: CheckoutInput): Promise<SaleWith
       for (const l of lines) {
         await moveStock(tx, ctx, { productId: l.product.id, type: "SALE", quantity: -l.quantity, note: `Receipt #${receiptNo}`, saleId: sale.id });
       }
+      if (customerId) await chargeAccount(tx, ctx, customerId, total);
 
       return tx.sale.findUniqueOrThrow({ where: { id: sale.id }, include: saleInclude });
     });
@@ -127,6 +135,7 @@ export async function checkout(ctx: Ctx, input: CheckoutInput): Promise<SaleWith
 }
 
 function paymentFields(payment: z.infer<typeof checkoutInput>["payment"], total: number): { method: PaymentMethod; tenderedNgwee: number | null; changeNgwee: number | null; paymentRef: string | null } {
+  if (payment.method === "ON_ACCOUNT") return { method: "ON_ACCOUNT", tenderedNgwee: null, changeNgwee: null, paymentRef: null };
   if (payment.method === "CASH") {
     if (payment.tenderedNgwee < total) throw new DomainError("The cash given is less than the total", "invalid");
     return { method: "CASH", tenderedNgwee: payment.tenderedNgwee, changeNgwee: payment.tenderedNgwee - total, paymentRef: null };
@@ -159,6 +168,8 @@ export async function voidSale(ctx: Ctx, saleId: string, reason: string) {
     for (const item of sale.items) {
       await moveStock(tx, ctx, { productId: item.productId, type: "RETURN", quantity: item.quantity, note: `Cancelled receipt #${sale.receiptNo}`, saleId });
     }
+    // An on-account sale comes off what the customer owes.
+    if (sale.method === "ON_ACCOUNT" && sale.customerId) await uncharge(tx, sale.customerId, sale.totalNgwee);
     return tx.sale.findUniqueOrThrow({ where: { id: saleId }, include: saleInclude });
   });
 }
@@ -185,6 +196,7 @@ export async function salesBetween(ctx: Ctx, from: Date, to: Date) {
     profitNgwee: sum((s) => s.totalNgwee - s.costTotalNgwee),
     cashNgwee: sum((s) => (s.method === "CASH" ? s.totalNgwee : 0)),
     mobileMoneyNgwee: sum((s) => (s.method === "MOBILE_MONEY" ? s.totalNgwee : 0)),
+    onAccountNgwee: sum((s) => (s.method === "ON_ACCOUNT" ? s.totalNgwee : 0)),
     voided: sales.length - done.length,
   };
 }

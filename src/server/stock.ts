@@ -19,6 +19,7 @@ export type MovementInput = {
   note?: string | null;
   costNgwee?: number | null;
   saleId?: string | null;
+  purchaseId?: string | null;
 };
 
 /**
@@ -61,6 +62,7 @@ export async function moveStock(tx: Tx, ctx: Ctx, m: MovementInput) {
       note: m.note?.trim() || null,
       userId: ctx.userId,
       saleId: m.saleId ?? null,
+      purchaseId: m.purchaseId ?? null,
     },
   });
 }

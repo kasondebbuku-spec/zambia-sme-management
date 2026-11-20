@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { PAYMENT_LABEL } from "@/lib/labels";
 import { formatKwacha } from "@/lib/money";
 import { lusakaDay, salesBetween } from "@/server/sales";
 import { requireUser } from "@/server/session";
@@ -23,11 +24,12 @@ export default async function SalesPage() {
         </Link>
       </div>
 
-      <dl className={`grid gap-3 ${seesProfit ? "sm:grid-cols-5" : "sm:grid-cols-4"}`}>
+      <dl className="grid gap-3 sm:grid-cols-3 lg:grid-cols-6">
         <Stat label="Sales" value={String(day.count)} />
         <Stat label="Takings" value={formatKwacha(day.totalNgwee)} />
         <Stat label="Cash" value={formatKwacha(day.cashNgwee)} hint="Should match the cash drawer" />
         <Stat label="Mobile money" value={formatKwacha(day.mobileMoneyNgwee)} />
+        {day.onAccountNgwee > 0 && <Stat label="On account" value={formatKwacha(day.onAccountNgwee)} hint="Sold on credit: not in the drawer yet" />}
         {seesProfit && <Stat label="Profit" value={formatKwacha(day.profitNgwee)} hint="Takings minus what the goods cost" />}
       </dl>
 
@@ -66,7 +68,7 @@ export default async function SalesPage() {
                   </td>
                   <td className="px-4 py-2 tabular-nums">{time.format(s.createdAt)}</td>
                   <td className="px-4 py-2">{s.cashier?.name ?? "—"}</td>
-                  <td className="px-4 py-2">{s.method === "CASH" ? "Cash" : "Mobile money"}</td>
+                  <td className="px-4 py-2">{PAYMENT_LABEL[s.method]}</td>
                   <td className={`px-4 py-2 text-right tabular-nums ${s.status === "VOIDED" ? "line-through" : "font-medium"}`}>{formatKwacha(s.totalNgwee)}</td>
                 </tr>
               ))}

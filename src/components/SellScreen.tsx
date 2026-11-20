@@ -6,6 +6,7 @@ import { completeSale } from "@/app/actions/sales";
 import { formatKwacha, parseKwacha } from "@/lib/money";
 
 export type TillProduct = { id: string; sku: string; name: string; unit: string; priceNgwee: number; stockQty: number };
+export type TillCustomer = { id: string; name: string; phone: string | null; availableNgwee: number };
 
 // The basket keeps only ids and quantities. Product details (price, stock) are always read
 // from the latest list, so a refresh after another till's sale updates the basket too.
@@ -18,11 +19,12 @@ function newClientRef() {
   return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-export function SellScreen({ products }: { products: TillProduct[] }) {
+export function SellScreen({ products, customers }: { products: TillProduct[]; customers: TillCustomer[] }) {
   const router = useRouter();
   const [search, setSearch] = useState("");
   const [basket, setBasket] = useState<BasketLine[]>([]);
-  const [method, setMethod] = useState<"CASH" | "MOBILE_MONEY">("CASH");
+  const [method, setMethod] = useState<"CASH" | "MOBILE_MONEY" | "ON_ACCOUNT">("CASH");
+  const [customerId, setCustomerId] = useState("");
   const [tendered, setTendered] = useState("");
   const [reference, setReference] = useState("");
   const [phone, setPhone] = useState("");
@@ -47,12 +49,17 @@ export function SellScreen({ products }: { products: TillProduct[] }) {
   const total = lines.reduce((n, l) => n + l.product.priceNgwee * l.quantity, 0);
   const tenderedNgwee = tendered.trim() === "" ? null : parseKwacha(tendered);
   const change = tenderedNgwee !== null ? tenderedNgwee - total : null;
+  const customer = customers.find((c) => c.id === customerId);
   const overStock = lines.filter((l) => l.quantity > l.product.stockQty);
 
   const ready =
     lines.length > 0 &&
     overStock.length === 0 &&
-    (method === "CASH" ? tenderedNgwee !== null && tenderedNgwee >= total : /^[A-Za-z0-9.-]{6,40}$/.test(reference.trim()));
+    (method === "CASH"
+      ? tenderedNgwee !== null && tenderedNgwee >= total
+      : method === "MOBILE_MONEY"
+        ? /^[A-Za-z0-9.-]{6,40}$/.test(reference.trim())
+        : customer !== undefined && customer.availableNgwee >= total);
 
   function add(p: TillProduct) {
     setError(null);
@@ -70,7 +77,7 @@ export function SellScreen({ products }: { products: TillProduct[] }) {
       const res = await completeSale({
         clientRef,
         items: lines.map((l) => ({ productId: l.product.id, quantity: l.quantity })),
-        payment: method === "CASH" ? { method, tenderedNgwee: tenderedNgwee ?? 0 } : { method, reference },
+        payment: method === "CASH" ? { method, tenderedNgwee: tenderedNgwee ?? 0 } : method === "MOBILE_MONEY" ? { method, reference } : { method, customerId },
         customerPhone: phone,
       });
       if (res.ok) router.push(`/sales/${res.saleId}?new=1`);
@@ -186,8 +193,8 @@ export function SellScreen({ products }: { products: TillProduct[] }) {
 
         <fieldset className="space-y-3">
           <legend className="text-sm font-medium">Payment</legend>
-          <div className="grid grid-cols-2 gap-2" role="radiogroup">
-            {(["CASH", "MOBILE_MONEY"] as const).map((m) => (
+          <div className="grid grid-cols-3 gap-2" role="radiogroup">
+            {(["CASH", "MOBILE_MONEY", "ON_ACCOUNT"] as const).map((m) => (
               <button
                 key={m}
                 type="button"
@@ -196,7 +203,7 @@ export function SellScreen({ products }: { products: TillProduct[] }) {
                 onClick={() => setMethod(m)}
                 className={`rounded-md border px-3 py-2 text-sm font-medium ${method === m ? "border-brand bg-brand-soft text-brand-dark" : "border-line"}`}
               >
-                {m === "CASH" ? "Cash" : "Mobile money"}
+                {m === "CASH" ? "Cash" : m === "MOBILE_MONEY" ? "Mobile money" : "On account"}
               </button>
             ))}
           </div>
@@ -225,6 +232,30 @@ export function SellScreen({ products }: { products: TillProduct[] }) {
                 </p>
               )}
               {change !== null && change < 0 && <p className="text-sm text-danger">{formatKwacha(-change)} short</p>}
+            </div>
+          ) : method === "ON_ACCOUNT" ? (
+            <div className="space-y-2">
+              {customers.length === 0 ? (
+                <p className="text-sm text-muted">No customers have credit yet. A manager can add them under Customers.</p>
+              ) : (
+                <label className="block space-y-1 text-sm">
+                  <span className="block font-medium">Customer</span>
+                  <select value={customerId} onChange={(e) => setCustomerId(e.target.value)} className="w-full rounded-md border border-line bg-surface px-3 py-2 text-base">
+                    <option value="">Choose…</option>
+                    {customers.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name} · {formatKwacha(c.availableNgwee)} available
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
+              {customer && total > customer.availableNgwee && (
+                <p className="text-sm text-danger">
+                  Over {customer.name}&apos;s credit by {formatKwacha(total - customer.availableNgwee)}. Take cash or mobile money instead.
+                </p>
+              )}
+              {customer && total > 0 && total <= customer.availableNgwee && <p className="text-sm">Added to what {customer.name} owes.</p>}
             </div>
           ) : (
             <div className="space-y-2">
