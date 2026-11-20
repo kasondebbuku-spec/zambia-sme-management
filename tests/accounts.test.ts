@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { checkPassword, clearAttempts, registerBusiness, tooManyAttempts } from "../src/server/accounts";
 import { db } from "../src/server/db";
 import { hasTestDb, resetDb } from "./helpers";
@@ -31,6 +31,28 @@ describe.skipIf(!hasTestDb)("accounts", () => {
     expect(await checkPassword("NATASHA@shop.test", "a-long-password")).toMatchObject({ role: "OWNER" });
     expect(await checkPassword("natasha@shop.test", "wrong")).toBeNull();
     expect(await checkPassword("nobody@shop.test", "a-long-password")).toBeNull();
+  });
+
+  describe("invite code during a pilot", () => {
+    afterEach(() => {
+      delete process.env.SIGNUP_CODE;
+    });
+
+    it("lets anyone register when no code is set", async () => {
+      await expect(registerBusiness(signUp)).resolves.toMatchObject({ role: "OWNER" });
+    });
+
+    it("refuses a missing or wrong code, and creates nothing", async () => {
+      process.env.SIGNUP_CODE = "KABWE-PILOT-26";
+      await expect(registerBusiness(signUp)).rejects.toThrow(/invite code isn't right/);
+      await expect(registerBusiness({ ...signUp, inviteCode: "kabwe-pilot-26" })).rejects.toThrow(/invite code isn't right/);
+      expect(await db.business.count()).toBe(0);
+    });
+
+    it("accepts the right code, ignoring spaces around it", async () => {
+      process.env.SIGNUP_CODE = "KABWE-PILOT-26";
+      await expect(registerBusiness({ ...signUp, inviteCode: " KABWE-PILOT-26 " })).resolves.toMatchObject({ role: "OWNER" });
+    });
   });
 
   it("refuses deactivated accounts", async () => {

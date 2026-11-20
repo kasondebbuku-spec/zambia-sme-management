@@ -1,3 +1,4 @@
+import { timingSafeEqual } from "node:crypto";
 import bcrypt from "bcryptjs";
 import { Prisma } from "@prisma/client";
 import { z } from "zod";
@@ -6,7 +7,19 @@ import { DomainError } from "./errors";
 
 const ROUNDS = Number(process.env.BCRYPT_ROUNDS ?? 12);
 
+/** While piloting, SIGNUP_CODE limits sign-up to people given the code. */
+export const signUpNeedsCode = () => Boolean(process.env.SIGNUP_CODE);
+
+function codeMatches(given: string | undefined) {
+  const expected = process.env.SIGNUP_CODE;
+  if (!expected) return true;
+  const a = Buffer.from((given ?? "").trim());
+  const b = Buffer.from(expected);
+  return a.length === b.length && timingSafeEqual(a, b);
+}
+
 export const signUpInput = z.object({
+  inviteCode: z.string().optional(),
   businessName: z.string().trim().min(2, "Enter your business name").max(120),
   town: z.string().trim().max(60).optional(),
   ownerName: z.string().trim().min(2, "Enter your name").max(80),
@@ -17,6 +30,7 @@ export const signUpInput = z.object({
 /** Creates a business and its owner together. */
 export async function registerBusiness(input: z.input<typeof signUpInput>) {
   const data = signUpInput.parse(input);
+  if (!codeMatches(data.inviteCode)) throw new DomainError("That invite code isn't right. Check it with whoever gave it to you.", "forbidden");
   const passwordHash = await bcrypt.hash(data.password, ROUNDS);
   try {
     return await db.$transaction(async (tx) => {

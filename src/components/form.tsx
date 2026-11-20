@@ -22,7 +22,7 @@ export function Field({
         aria-invalid={error ? true : undefined}
         aria-describedby={error ? `${id}-error` : hint ? `${id}-hint` : undefined}
         {...input}
-        className={`w-full rounded-md border bg-surface px-3 py-2 text-base ${error ? "border-danger" : "border-line"} ${input.className ?? ""}`}
+        className={`w-full rounded-xl border bg-surface px-3.5 py-2.5 text-base shadow-[inset_0_1px_2px_rgb(43_29_20/0.04)] outline-none transition focus:border-brand focus:ring-4 focus:ring-brand/15 ${error ? "border-danger" : "border-line"} ${input.className ?? ""}`}
       />
       {error ? (
         <p id={`${id}-error`} className="text-sm text-danger">
@@ -41,9 +41,9 @@ export function Field({
 
 export function SubmitButton({ children, pending, variant = "primary" }: { children: React.ReactNode; pending?: string; variant?: "primary" | "secondary" }) {
   const { pending: busy } = useFormStatus();
-  const styles = variant === "primary" ? "bg-brand text-white hover:bg-brand-dark" : "border border-line bg-surface hover:bg-canvas";
+  const styles = variant === "primary" ? "bg-brand text-white shadow-[0_8px_18px_-10px_rgb(180_68_28/0.9)] hover:bg-brand-dark" : "border border-line bg-surface hover:bg-sand";
   return (
-    <button type="submit" disabled={busy} className={`rounded-md px-4 py-2 text-sm font-medium disabled:opacity-60 ${styles}`}>
+    <button type="submit" disabled={busy} className={`rounded-xl px-5 py-2.5 text-sm font-semibold transition disabled:opacity-60 ${styles}`}>
       {busy ? (pending ?? "Saving…") : children}
     </button>
   );
@@ -52,13 +52,13 @@ export function SubmitButton({ children, pending, variant = "primary" }: { child
 export function FormMessage({ state }: { state: FormState }) {
   if (state?.error)
     return (
-      <p role="alert" className="rounded-md bg-danger-soft px-3 py-2 text-sm text-danger">
+      <p role="alert" className="rounded-xl bg-danger-soft px-3 py-2 text-sm text-danger">
         {state.error}
       </p>
     );
   if (state?.ok)
     return (
-      <p role="status" className="rounded-md bg-good-soft px-3 py-2 text-sm text-good">
+      <p role="status" className="rounded-xl bg-good-soft px-3 py-2 text-sm text-good">
         {state.ok}
       </p>
     );

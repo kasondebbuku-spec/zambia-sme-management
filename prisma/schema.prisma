@@ -1,6 +1,6 @@
 // Kantemba data model.
 //
-// A Business (a shop) has Users and Products. Every change to a product's stock is written
+// A Business (a shop) has Users, Products and Sales. Every change to a product's stock is written
 // to StockMovement, an append-only ledger: the quantity on Product is a running total that
 // always equals the sum of its movements. Money is stored in ngwee (K1 = 100 ngwee) so
 // amounts are whole numbers and never suffer floating-point rounding.
@@ -10,14 +10,32 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL") // on Neon: the pooled connection string
+  directUrl = env("DIRECT_URL") // on Neon: the direct one, used by migrations; locally the same as DATABASE_URL
 }
 
 enum Role {
   OWNER // everything, including staff and prices
   MANAGER // stock, products and reports
   CASHIER // sells; can't change prices or adjust stock
+}
+
+enum PaymentMethod {
+  CASH
+  MOBILE_MONEY // Airtel Money, MTN MoMo or Zamtel Kwacha, confirmed on the phone; reference recorded
+  ON_ACCOUNT // a regular customer pays later; added to what they owe, within their credit limit
+}
+
+enum PurchaseStatus {
+  ORDERED // sent to the supplier, not yet delivered
+  RECEIVED // delivered: stock and cost updated
+  CANCELLED
+}
+
+enum SaleStatus {
+  COMPLETED
+  VOIDED // cancelled by a manager; stock went back on the shelf
 }
 
 enum MovementType {
@@ -30,15 +48,23 @@ enum MovementType {
 }
 
 model Business {
-  id        String   @id @default(cuid())
-  name      String
-  phone     String?
-  town      String?
-  createdAt DateTime @default(now())
+  id             String   @id @default(cuid())
+  name           String
+  phone          String?
+  town           String?
+  // Next receipt number. Incremented inside the sale's transaction, so a sale that fails
+  // never uses up a number and receipts have no gaps.
+  nextReceiptNo  Int      @default(1)
+  nextPurchaseNo Int      @default(1)
+  createdAt      DateTime @default(now())
 
   users     User[]
   products  Product[]
   movements StockMovement[]
+  sales     Sale[]
+  suppliers Supplier[]
+  purchases Purchase[]
+  customers Customer[]
 }
 
 model User {
@@ -52,7 +78,12 @@ model User {
   isActive     Boolean  @default(true)
   createdAt    DateTime @default(now())
 
-  movements StockMovement[]
+  movements         StockMovement[]
+  sales             Sale[]            @relation("Cashier")
+  voids             Sale[]            @relation("VoidedBy")
+  purchasesCreated  Purchase[]        @relation("PurchaseCreatedBy")
+  purchasesReceived Purchase[]        @relation("PurchaseReceivedBy")
+  paymentsTaken     CustomerPayment[]
 
   @@index([businessId])
 }
@@ -73,7 +104,9 @@ model Product {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  movements StockMovement[]
+  movements     StockMovement[]
+  saleItems     SaleItem[]
+  purchaseItems PurchaseItem[]
 
   @@unique([businessId, sku])
   @@index([businessId, name])
@@ -92,8 +125,152 @@ model StockMovement {
   note         String?
   userId       String?
   user         User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+  saleId       String? // set for SALE movements, and for RETURNs from a voided sale
+  sale         Sale?        @relation(fields: [saleId], references: [id], onDelete: SetNull)
+  purchaseId   String? // set for RESTOCKs from a received purchase order
+  purchase     Purchase?    @relation(fields: [purchaseId], references: [id], onDelete: SetNull)
   createdAt    DateTime     @default(now())
 
   @@index([productId, createdAt])
   @@index([businessId, createdAt])
+}
+
+model Sale {
+  id         String     @id @default(cuid())
+  businessId String
+  business   Business   @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  receiptNo  Int // 1, 2, 3… per business, no gaps
+  // Made by the till when the basket starts. If a slow connection makes the cashier tap
+  // "Complete sale" twice, the second request finds this and returns the same sale.
+  clientRef  String
+  cashierId  String?
+  cashier    User?      @relation("Cashier", fields: [cashierId], references: [id], onDelete: SetNull)
+  status     SaleStatus @default(COMPLETED)
+
+  totalNgwee     Int
+  costTotalNgwee Int // what the goods cost the shop, for profit
+  method         PaymentMethod
+  tenderedNgwee  Int? // cash handed over
+  changeNgwee    Int? // cash given back
+  paymentRef     String? // mobile-money transaction ID
+  customerPhone  String?
+  customerId     String? // required for ON_ACCOUNT sales
+  customer       Customer?     @relation(fields: [customerId], references: [id], onDelete: Restrict)
+
+  voidedAt   DateTime?
+  voidedById String?
+  voidedBy   User?     @relation("VoidedBy", fields: [voidedById], references: [id], onDelete: SetNull)
+  voidReason String?
+  createdAt  DateTime  @default(now())
+
+  items     SaleItem[]
+  movements StockMovement[]
+
+  @@unique([businessId, receiptNo])
+  @@unique([businessId, clientRef])
+  @@index([businessId, createdAt])
+}
+
+// One line on a receipt. Name and prices are copied at the time of sale, so changing a
+// product later never rewrites old receipts or past profit.
+model SaleItem {
+  id             String  @id @default(cuid())
+  saleId         String
+  sale           Sale    @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  productId      String
+  product        Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+  name           String
+  sku            String
+  unit           String
+  quantity       Int
+  unitPriceNgwee Int
+  unitCostNgwee  Int
+  lineTotalNgwee Int
+
+  @@index([productId])
+}
+
+model Supplier {
+  id         String   @id @default(cuid())
+  businessId String
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  name       String
+  phone      String?
+  notes      String?
+  createdAt  DateTime @default(now())
+
+  purchases Purchase[]
+
+  @@unique([businessId, name])
+}
+
+model Purchase {
+  id           String         @id @default(cuid())
+  businessId   String
+  business     Business       @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  number       Int // PO-1, PO-2… per business
+  supplierId   String
+  supplier     Supplier       @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  status       PurchaseStatus @default(ORDERED)
+  note         String?
+  totalNgwee   Int // ordered total; replaced by the received total on delivery
+  createdById  String?
+  createdBy    User?          @relation("PurchaseCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  receivedAt   DateTime?
+  receivedById String?
+  receivedBy   User?          @relation("PurchaseReceivedBy", fields: [receivedById], references: [id], onDelete: SetNull)
+  createdAt    DateTime       @default(now())
+
+  items     PurchaseItem[]
+  movements StockMovement[]
+
+  @@unique([businessId, number])
+  @@index([businessId, status])
+}
+
+model PurchaseItem {
+  id                String   @id @default(cuid())
+  purchaseId        String
+  purchase          Purchase @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+  productId         String
+  product           Product  @relation(fields: [productId], references: [id], onDelete: Restrict)
+  orderedQty        Int
+  orderedCostNgwee  Int // expected price per unit
+  receivedQty       Int? // what actually arrived (can be less)
+  receivedCostNgwee Int? // what was actually charged per unit
+
+  @@unique([purchaseId, productId])
+}
+
+model Customer {
+  id               String   @id @default(cuid())
+  businessId       String
+  business         Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  name             String
+  phone            String?
+  creditLimitNgwee Int      @default(0) // most they may owe at once; 0 = cash only
+  balanceNgwee     Int      @default(0) // what they owe now; never above the limit, never below 0
+  createdAt        DateTime @default(now())
+
+  sales    Sale[]
+  payments CustomerPayment[]
+
+  @@unique([businessId, phone])
+  @@index([businessId, name])
+}
+
+// Money a customer pays towards what they owe.
+model CustomerPayment {
+  id           String        @id @default(cuid())
+  customerId   String
+  customer     Customer      @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  amountNgwee  Int
+  method       PaymentMethod // CASH or MOBILE_MONEY
+  reference    String?
+  balanceAfter Int
+  receivedById String?
+  receivedBy   User?         @relation(fields: [receivedById], references: [id], onDelete: SetNull)
+  createdAt    DateTime      @default(now())
+
+  @@index([customerId, createdAt])
 }

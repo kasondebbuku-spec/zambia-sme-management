@@ -13,6 +13,7 @@ export default defineConfig({
     fileParallelism: false, // database tests share one database
     env: {
       DATABASE_URL: TEST_DATABASE_URL || "postgresql://unused:unused@localhost:5432/unused",
+      DIRECT_URL: TEST_DATABASE_URL || "postgresql://unused:unused@localhost:5432/unused",
       ...(TEST_DATABASE_URL ? { TEST_DATABASE_URL } : {}),
       BCRYPT_ROUNDS: "4",
     },

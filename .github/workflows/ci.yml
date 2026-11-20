@@ -27,6 +27,7 @@ jobs:
     env:
       DATABASE_URL: postgresql://kantemba:kantemba@localhost:5432/kantemba_test?schema=public
       TEST_DATABASE_URL: postgresql://kantemba:kantemba@localhost:5432/kantemba_test?schema=public
+      DIRECT_URL: postgresql://kantemba:kantemba@localhost:5432/kantemba_test?schema=public
       SESSION_SECRET: ci-only-secret-that-is-longer-than-32-characters
 
     steps:

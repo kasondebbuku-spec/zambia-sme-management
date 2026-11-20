@@ -27,7 +27,12 @@ async function main() {
   const hash = await bcrypt.hash(password, 12);
 
   const existing = await db.user.findUnique({ where: { email } });
-  if (existing) await db.business.delete({ where: { id: existing.businessId } }); // cascades to everything
+  if (existing) {
+    // Sales and purchases protect their products, suppliers and customers from deletion, so clear them first.
+    await db.sale.deleteMany({ where: { businessId: existing.businessId } });
+    await db.purchase.deleteMany({ where: { businessId: existing.businessId } });
+    await db.business.delete({ where: { id: existing.businessId } }); // cascades to everything else
+  }
 
   const business = await db.business.create({ data: { name: "Mwila General Dealers", town: "Lusaka", phone: "0971234567" } });
   const [owner] = await Promise.all([
@@ -45,7 +50,20 @@ async function main() {
     }
   }
 
-  console.log(`Seeded "${business.name}" with ${PRODUCTS.length} products.`);
+  await db.supplier.createMany({
+    data: [
+      { businessId: business.id, name: "Kalulushi Wholesalers", phone: "0961234567", notes: "Groceries; delivers Tuesdays" },
+      { businessId: business.id, name: "Zambeef Depot Lusaka", phone: "0977654321" },
+    ],
+  });
+  await db.customer.createMany({
+    data: [
+      { businessId: business.id, name: "Mr Phiri", phone: "0971112233", creditLimitNgwee: 50000 },
+      { businessId: business.id, name: "Mrs Lungu", phone: "0962223344", creditLimitNgwee: 0 },
+    ],
+  });
+
+  console.log(`Seeded "${business.name}" with ${PRODUCTS.length} products, 2 suppliers and 2 customers.`);
   console.log(`Sign in as ${email} (owner), manager@kantemba.test or cashier@kantemba.test, all with SEED_OWNER_PASSWORD.`);
 }
 

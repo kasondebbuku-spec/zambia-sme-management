@@ -19,7 +19,7 @@ export function MovementForm({ action, unit }: { action: Action; unit: string })
           ["return", "Returned by customer"],
           ["damage", "Damaged or expired"],
         ].map(([value, label]) => (
-          <label key={value} className="flex items-center gap-2 rounded-md border border-line px-3 py-2">
+          <label key={value} className="flex items-center gap-2 rounded-xl border border-line px-3 py-2">
             <input type="radio" name="kind" value={value} defaultChecked={(state?.values?.kind ?? "restock") === value} /> {label}
           </label>
         ))}
