@@ -68,15 +68,17 @@ model Business {
 }
 
 model User {
-  id           String   @id @default(cuid())
-  businessId   String
-  business     Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  email        String   @unique
-  name         String
-  passwordHash String
-  role         Role
-  isActive     Boolean  @default(true)
-  createdAt    DateTime @default(now())
+  id                String    @id @default(cuid())
+  businessId        String
+  business          Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  email             String    @unique
+  name              String
+  passwordHash      String
+  role              Role
+  isActive          Boolean   @default(true)
+  // Sessions started before this are refused, so a password change signs out every other phone.
+  passwordChangedAt DateTime?
+  createdAt         DateTime  @default(now())
 
   movements         StockMovement[]
   sales             Sale[]            @relation("Cashier")
@@ -89,20 +91,20 @@ model User {
 }
 
 model Product {
-  id           String   @id @default(cuid())
-  businessId   String
-  business     Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  sku          String // shop's own code or barcode, unique within the business
-  name         String
-  category     String   @default("General")
-  unit         String   @default("each") // each, packet, bag, bottle, kg
-  costNgwee    Int // what the shop pays per unit
-  priceNgwee   Int // what the customer pays per unit
-  stockQty     Int      @default(0) // running total of movements; never negative
-  reorderLevel Int      @default(0) // alert when stock is at or below this
-  isActive     Boolean  @default(true)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id                String    @id @default(cuid())
+  businessId        String
+  business          Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  sku               String // shop's own code or barcode, unique within the business
+  name              String
+  category          String    @default("General")
+  unit              String    @default("each") // each, packet, bag, bottle, kg
+  costNgwee         Int // what the shop pays per unit
+  priceNgwee        Int // what the customer pays per unit
+  stockQty          Int       @default(0) // running total of movements; never negative
+  reorderLevel      Int       @default(0) // alert when stock is at or below this
+  isActive          Boolean   @default(true)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
   movements     StockMovement[]
   saleItems     SaleItem[]

@@ -44,7 +44,8 @@ For each shop:
 1. Open `https://<your-address>/signup` on the owner's phone.
 2. Enter the invite code, the shop's name, the owner's name, email and a password of 10+ characters.
 3. Add their products with opening stock. Doing this together the first time is the best training.
-4. Show the cashier the **Sell** screen, and the owner the **Dashboard**, **Running low** and **Today's sales**.
+4. Under **Staff**, the owner adds each cashier with their own email and a starting password, told in person. The cashier signs in on their phone and changes it under **My account**. When someone leaves, the owner switches their login off.
+5. Show the cashier the **Sell** screen, and the owner the **Dashboard**, **Running low** and **Today's sales**.
 
 Tip: add the site to the phone's home screen (browser menu → *Add to Home screen*) so it opens like an app.
 

@@ -7,6 +7,11 @@ import { DomainError } from "./errors";
 
 const ROUNDS = Number(process.env.BCRYPT_ROUNDS ?? 12);
 
+export const hashPassword = (password: string) => bcrypt.hash(password, ROUNDS);
+
+/** The same rules everywhere a password is chosen. */
+export const newPassword = z.string().min(10, "Use at least 10 characters").max(200);
+
 /** While piloting, SIGNUP_CODE limits sign-up to people given the code. */
 export const signUpNeedsCode = () => Boolean(process.env.SIGNUP_CODE);
 
@@ -24,14 +29,14 @@ export const signUpInput = z.object({
   town: z.string().trim().max(60).optional(),
   ownerName: z.string().trim().min(2, "Enter your name").max(80),
   email: z.string().trim().toLowerCase().email("Enter a valid email address"),
-  password: z.string().min(10, "Use at least 10 characters").max(200),
+  password: newPassword,
 });
 
 /** Creates a business and its owner together. */
 export async function registerBusiness(input: z.input<typeof signUpInput>) {
   const data = signUpInput.parse(input);
   if (!codeMatches(data.inviteCode)) throw new DomainError("That invite code isn't right. Check it with whoever gave it to you.", "forbidden");
-  const passwordHash = await bcrypt.hash(data.password, ROUNDS);
+  const passwordHash = await hashPassword(data.password);
   try {
     return await db.$transaction(async (tx) => {
       const business = await tx.business.create({ data: { name: data.businessName, town: data.town || null } });
