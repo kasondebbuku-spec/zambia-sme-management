@@ -86,6 +86,7 @@ model User {
   purchasesCreated  Purchase[]        @relation("PurchaseCreatedBy")
   purchasesReceived Purchase[]        @relation("PurchaseReceivedBy")
   paymentsTaken     CustomerPayment[]
+  changeHandled     ChangeEntry[]
 
   @@index([businessId])
 }
@@ -154,6 +155,9 @@ model Sale {
   method         PaymentMethod
   tenderedNgwee  Int? // cash handed over
   changeNgwee    Int? // cash given back
+  // No coins for the change? The shop keeps it for the customer to use another day.
+  changeKeptNgwee Int @default(0) // change from this sale kept for the customer
+  changeUsedNgwee Int @default(0) // change kept earlier, put towards this sale
   paymentRef     String? // mobile-money transaction ID
   customerPhone  String?
   customerId     String? // required for ON_ACCOUNT sales
@@ -165,8 +169,9 @@ model Sale {
   voidReason String?
   createdAt  DateTime  @default(now())
 
-  items     SaleItem[]
-  movements StockMovement[]
+  items         SaleItem[]
+  movements     StockMovement[]
+  changeEntries ChangeEntry[]
 
   @@unique([businessId, receiptNo])
   @@unique([businessId, clientRef])
@@ -252,16 +257,42 @@ model Customer {
   phone            String?
   creditLimitNgwee Int      @default(0) // most they may owe at once; 0 = cash only
   balanceNgwee     Int      @default(0) // what they owe now; never above the limit, never below 0
+  changeHeldNgwee  Int      @default(0) // change the shop is keeping for them; never below 0
   createdAt        DateTime @default(now())
 
-  sales    Sale[]
-  payments CustomerPayment[]
+  sales         Sale[]
+  payments      CustomerPayment[]
+  changeEntries ChangeEntry[]
 
   @@unique([businessId, phone])
   @@index([businessId, name])
 }
 
 // Money a customer pays towards what they owe.
+enum ChangeKind {
+  KEPT // the shop kept change from a sale
+  USED // kept change paid for part of a sale
+  PAID_OUT // handed to the customer in cash
+  SALE_CANCELLED // a cancelled sale undoes what it kept or used
+}
+
+/// Every movement of a customer's kept change, so the balance can always be explained.
+model ChangeEntry {
+  id           String     @id @default(cuid())
+  customerId   String
+  customer     Customer   @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  saleId       String?
+  sale         Sale?      @relation(fields: [saleId], references: [id], onDelete: SetNull)
+  kind         ChangeKind
+  amountNgwee  Int // + the shop holds more for them, − less
+  balanceAfter Int
+  byId         String?
+  by           User?      @relation(fields: [byId], references: [id], onDelete: SetNull)
+  createdAt    DateTime   @default(now())
+
+  @@index([customerId, createdAt])
+}
+
 model CustomerPayment {
   id           String        @id @default(cuid())
   customerId   String

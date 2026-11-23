@@ -11,7 +11,7 @@ export default async function SellPage() {
   const [products, customers] = await Promise.all([listProducts(ctx), listCustomers(ctx)]);
   // Every customer can be named on a sale; only those with a limit can buy on account.
   const tillCustomers = customers
-    .map((c) => ({ id: c.id, name: c.name, phone: c.phone, hasCredit: c.creditLimitNgwee > 0, availableNgwee: Math.max(0, c.creditLimitNgwee - c.balanceNgwee) }))
+    .map((c) => ({ id: c.id, name: c.name, phone: c.phone, hasCredit: c.creditLimitNgwee > 0, availableNgwee: Math.max(0, c.creditLimitNgwee - c.balanceNgwee), changeHeldNgwee: c.changeHeldNgwee }))
     .sort((a, b) => a.name.localeCompare(b.name));
   // In stock first, so the till shows what can actually be sold.
   const forTill = products

@@ -5,7 +5,7 @@ import type { Ctx } from "../src/server/errors";
 export const hasTestDb = Boolean(process.env.TEST_DATABASE_URL);
 
 export async function resetDb() {
-  await db.$executeRawUnsafe(`TRUNCATE "CustomerPayment", "Customer", "PurchaseItem", "Purchase", "Supplier", "SaleItem", "Sale", "StockMovement", "Product", "User", "Business" CASCADE`);
+  await db.$executeRawUnsafe(`TRUNCATE "ChangeEntry", "CustomerPayment", "Customer", "PurchaseItem", "Purchase", "Supplier", "SaleItem", "Sale", "StockMovement", "Product", "User", "Business" CASCADE`);
 }
 
 let n = 0;

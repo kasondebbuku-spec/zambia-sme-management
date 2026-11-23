@@ -45,3 +45,15 @@ export function LimitForm({ action, current }: { action: Action; current: string
     </form>
   );
 }
+
+/** The customer collects their kept change in cash. */
+export function PayOutChangeForm({ action, held }: { action: Action; held: string }) {
+  const [state, formAction] = useActionState(action, undefined);
+  return (
+    <form action={formAction} className="space-y-2">
+      <FormMessage state={state} />
+      <Field label="Give them now (K)" name="amount" inputMode="decimal" required defaultValue={state?.values?.amount ?? held} error={state?.fieldErrors?.amountNgwee} />
+      <SubmitButton variant="secondary">Hand over change</SubmitButton>
+    </form>
+  );
+}

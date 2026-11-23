@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { PAYMENT_LABEL } from "@/lib/labels";
 import { formatKwacha } from "@/lib/money";
+import { changePaidOutBetween } from "@/server/change";
 import { lusakaDay, salesBetween } from "@/server/sales";
 import { requireUser } from "@/server/session";
 
@@ -12,7 +13,7 @@ const time = new Intl.DateTimeFormat("en-GB", { timeZone: "Africa/Lusaka", hour:
 export default async function SalesPage() {
   const { user, ctx } = await requireUser();
   const { from, to } = lusakaDay();
-  const day = await salesBetween(ctx, from, to);
+  const [day, paidOut] = await Promise.all([salesBetween(ctx, from, to), changePaidOutBetween(ctx, from, to)]);
   const seesProfit = user.role !== "CASHIER";
 
   return (
@@ -30,6 +31,13 @@ export default async function SalesPage() {
         <Stat label="Cash" value={formatKwacha(day.cashNgwee)} hint="Should match the cash drawer" />
         <Stat label="Mobile money" value={formatKwacha(day.mobileMoneyNgwee)} />
         {day.onAccountNgwee > 0 && <Stat label="On account" value={formatKwacha(day.onAccountNgwee)} hint="Sold on credit: not in the drawer yet" />}
+        {(day.changeKeptNgwee > 0 || day.changeUsedNgwee > 0 || paidOut > 0) && (
+          <Stat
+            label="Change kept"
+            value={formatKwacha(day.changeKeptNgwee)}
+            hint={`In the drawer but owed to customers. Used today ${formatKwacha(day.changeUsedNgwee)}, handed out ${formatKwacha(paidOut)}.`}
+          />
+        )}
         {seesProfit && <Stat label="Profit" value={formatKwacha(day.profitNgwee)} hint="Takings minus what the goods cost" />}
       </dl>
 

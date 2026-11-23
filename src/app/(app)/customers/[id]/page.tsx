@@ -2,14 +2,23 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { changeLimit, takePayment } from "@/app/actions/customers";
-import { LimitForm, PaymentForm } from "@/components/CustomerForms";
+import { giveChange } from "@/app/actions/customers";
+import { LimitForm, PaymentForm, PayOutChangeForm } from "@/components/CustomerForms";
 import { formatKwacha } from "@/lib/money";
 import { PAYMENT_LABEL } from "@/lib/labels";
+import { changeHistory } from "@/server/change";
 import { customerHistory, statement } from "@/server/customers";
 import { DomainError } from "@/server/errors";
 import { requireUser } from "@/server/session";
 
 export const metadata: Metadata = { title: "Customer" };
+
+const CHANGE_KIND = {
+  KEPT: "Change kept",
+  USED: "Used on a purchase",
+  PAID_OUT: "Handed over in cash",
+  SALE_CANCELLED: "Sale cancelled",
+} as const;
 
 const day = new Intl.DateTimeFormat("en-GB", {
   timeZone: "Africa/Lusaka",
@@ -39,7 +48,7 @@ export default async function CustomerPage({
     if (e instanceof DomainError && e.code === "not_found") notFound();
     throw e;
   });
-  const history = await customerHistory(ctx, id);
+  const [history, changeLines] = await Promise.all([customerHistory(ctx, id), changeHistory(ctx, id)]);
   const available = Math.max(0, c.creditLimitNgwee - c.balanceNgwee);
   const hasCredit =
     c.creditLimitNgwee > 0 || c.balanceNgwee > 0 || lines.length > 0;
@@ -83,6 +92,57 @@ export default async function CustomerPage({
           }
         />
       </dl>
+
+      {(c.changeHeldNgwee > 0 || changeLines.length > 0) && (
+        <section aria-labelledby="change-heading" className="card overflow-hidden">
+          <div className="flex flex-wrap items-start justify-between gap-4 p-5">
+            <div>
+              <h2 id="change-heading" className="font-semibold">
+                Change kept for them
+              </h2>
+              <p className={`mt-1 text-3xl font-bold tabular-nums ${c.changeHeldNgwee > 0 ? "text-forest" : "text-muted"}`}>{formatKwacha(c.changeHeldNgwee)}</p>
+              <p className="text-xs text-muted">
+                {c.changeHeldNgwee > 0 ? "They can use it on their next purchase, or collect it." : "Nothing kept for them right now."}
+              </p>
+            </div>
+            {c.changeHeldNgwee > 0 && (
+              <div className="w-full max-w-xs">
+                <PayOutChangeForm action={giveChange.bind(null, c.id)} held={(c.changeHeldNgwee / 100).toFixed(2)} />
+              </div>
+            )}
+          </div>
+          {changeLines.length > 0 && (
+            <ul className="divide-y divide-line border-t border-line text-sm">
+              {changeLines.map((l, i) => (
+                <li key={i} className="flex items-center justify-between gap-3 px-5 py-2.5">
+                  <span className="min-w-0">
+                    <span className="font-medium">{CHANGE_KIND[l.kind]}</span>
+                    {l.receiptNo !== null && l.saleId && (
+                      <>
+                        {" "}
+                        <Link href={`/sales/${l.saleId}`} className="text-brand hover:underline">
+                          #{l.receiptNo}
+                        </Link>
+                      </>
+                    )}
+                    <span className="block text-xs text-muted">
+                      {when.format(l.at)}
+                      {l.by ? ` · ${l.by}` : ""}
+                    </span>
+                  </span>
+                  <span className="shrink-0 text-right tabular-nums">
+                    <span className={l.amountNgwee > 0 ? "text-forest" : ""}>
+                      {l.amountNgwee > 0 ? "+" : "−"}
+                      {formatKwacha(Math.abs(l.amountNgwee))}
+                    </span>
+                    <span className="block text-xs text-muted">kept {formatKwacha(l.balanceAfter)}</span>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      )}
 
       <div className="grid gap-6 lg:grid-cols-2">
         <section aria-labelledby="favourites-heading" className="card p-5">

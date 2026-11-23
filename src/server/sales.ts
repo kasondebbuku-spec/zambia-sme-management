@@ -1,6 +1,8 @@
 import { Prisma, type PaymentMethod } from "@prisma/client";
 import { z } from "zod";
 import { db } from "./db";
+import { formatKwacha } from "@/lib/money";
+import { moveChange } from "./change";
 import { DomainError, requireRole, type Ctx } from "./errors";
 import { chargeAccount, uncharge } from "./customers";
 import { moveStock } from "./stock";
@@ -21,6 +23,8 @@ export const checkoutInput = z.object({
     z.object({
       method: z.literal("CASH"),
       tenderedNgwee: z.number().int().min(0),
+      // No coins? Some or all of the change is kept for the named customer.
+      keepChangeNgwee: z.number().int().min(0).default(0),
     }),
     z.object({
       method: z.literal("MOBILE_MONEY"),
@@ -52,6 +56,8 @@ export const checkoutInput = z.object({
     .regex(/^(?:\+?260|0)?[79]\d{8}$/, "Enter a Zambian mobile number")
     .optional()
     .or(z.literal("").transform(() => undefined)),
+  // Change the shop kept for this customer earlier, put towards this sale.
+  useChangeNgwee: z.number().int().min(0).default(0),
 });
 
 export type CheckoutInput = z.input<typeof checkoutInput>;
@@ -60,7 +66,7 @@ const saleInclude = {
   items: { orderBy: { name: "asc" } },
   cashier: { select: { name: true } },
   voidedBy: { select: { name: true } },
-  customer: { select: { id: true, name: true, balanceNgwee: true } },
+  customer: { select: { id: true, name: true, balanceNgwee: true, changeHeldNgwee: true } },
   business: { select: { name: true, town: true, phone: true } },
 } satisfies Prisma.SaleInclude;
 
@@ -135,7 +141,6 @@ export async function checkout(
 
       const total = lines.reduce((n, l) => n + l.lineTotal, 0);
       const cost = lines.reduce((n, l) => n + l.lineCost, 0);
-      const payment = paymentFields(data.payment, total);
       const onAccount =
         data.payment.method === "ON_ACCOUNT" ? data.payment.customerId : null;
       if (onAccount && data.customerId && data.customerId !== onAccount)
@@ -156,6 +161,16 @@ export async function checkout(
           "not_found",
         );
 
+      // Kept change belongs to a customer, so using or keeping it needs one.
+      const keep = data.payment.method === "CASH" ? data.payment.keepChangeNgwee : 0;
+      const used = data.useChangeNgwee;
+      if ((keep > 0 || used > 0) && !customerId)
+        throw new DomainError("Choose the customer whose change this is", "invalid");
+      if (used > total)
+        throw new DomainError(`Use at most ${formatKwacha(total)} of their change on this sale`, "invalid");
+      const due = total - used; // what the payment itself must cover
+      const payment = paymentFields(data.payment, due);
+
       const { nextReceiptNo } = await tx.business.update({
         where: { id: ctx.businessId },
         data: { nextReceiptNo: { increment: 1 } },
@@ -173,7 +188,12 @@ export async function checkout(
           costTotalNgwee: cost,
           customerPhone: data.customerPhone ?? customer?.phone ?? null,
           customerId,
-          ...payment,
+          method: payment.method,
+          tenderedNgwee: payment.tenderedNgwee,
+          changeNgwee: payment.changeNgwee,
+          paymentRef: payment.paymentRef,
+          changeUsedNgwee: used,
+          changeKeptNgwee: payment.keptNgwee,
           items: {
             create: lines.map((l) => ({
               productId: l.product.id,
@@ -198,7 +218,9 @@ export async function checkout(
           saleId: sale.id,
         });
       }
-      if (onAccount) await chargeAccount(tx, ctx, onAccount, total);
+      if (onAccount && due > 0) await chargeAccount(tx, ctx, onAccount, due);
+      if (used > 0) await moveChange(tx, ctx, customerId!, -used, "USED", sale.id);
+      if (payment.keptNgwee > 0) await moveChange(tx, ctx, customerId!, payment.keptNgwee, "KEPT", sale.id);
 
       return tx.sale.findUniqueOrThrow({
         where: { id: sale.id },
@@ -226,38 +248,34 @@ export async function checkout(
   }
 }
 
+/** Checks the payment covers what's due (the total less any kept change used) and works out the change. */
 function paymentFields(
   payment: z.infer<typeof checkoutInput>["payment"],
-  total: number,
+  due: number,
 ): {
   method: PaymentMethod;
   tenderedNgwee: number | null;
-  changeNgwee: number | null;
+  changeNgwee: number | null; // handed back now
+  keptNgwee: number; // kept for the customer
   paymentRef: string | null;
 } {
   if (payment.method === "ON_ACCOUNT")
-    return {
-      method: "ON_ACCOUNT",
-      tenderedNgwee: null,
-      changeNgwee: null,
-      paymentRef: null,
-    };
+    return { method: "ON_ACCOUNT", tenderedNgwee: null, changeNgwee: null, keptNgwee: 0, paymentRef: null };
   if (payment.method === "CASH") {
-    if (payment.tenderedNgwee < total)
+    if (payment.tenderedNgwee < due)
       throw new DomainError("The cash given is less than the total", "invalid");
+    const change = payment.tenderedNgwee - due;
+    if (payment.keepChangeNgwee > change)
+      throw new DomainError(`The change is only ${formatKwacha(change)}, so you can't keep more than that`, "invalid");
     return {
       method: "CASH",
       tenderedNgwee: payment.tenderedNgwee,
-      changeNgwee: payment.tenderedNgwee - total,
+      changeNgwee: change - payment.keepChangeNgwee,
+      keptNgwee: payment.keepChangeNgwee,
       paymentRef: null,
     };
   }
-  return {
-    method: "MOBILE_MONEY",
-    tenderedNgwee: null,
-    changeNgwee: null,
-    paymentRef: payment.reference.toUpperCase(),
-  };
+  return { method: "MOBILE_MONEY", tenderedNgwee: null, changeNgwee: null, keptNgwee: 0, paymentRef: payment.reference.toUpperCase() };
 }
 
 /**
@@ -303,9 +321,23 @@ export async function voidSale(ctx: Ctx, saleId: string, reason: string) {
         saleId,
       });
     }
-    // An on-account sale comes off what the customer owes.
-    if (sale.method === "ON_ACCOUNT" && sale.customerId)
-      await uncharge(tx, sale.customerId, sale.totalNgwee);
+    // An on-account sale comes off what the customer owes (the part that was charged).
+    const charged = sale.totalNgwee - sale.changeUsedNgwee;
+    if (sale.method === "ON_ACCOUNT" && sale.customerId && charged > 0)
+      await uncharge(tx, sale.customerId, charged);
+    // Kept change goes back the way it came: change used returns to them, change kept is taken back.
+    if (sale.customerId && sale.changeUsedNgwee > 0)
+      await moveChange(tx, ctx, sale.customerId, sale.changeUsedNgwee, "SALE_CANCELLED", saleId);
+    if (sale.customerId && sale.changeKeptNgwee > 0) {
+      await moveChange(tx, ctx, sale.customerId, -sale.changeKeptNgwee, "SALE_CANCELLED", saleId).catch((e) => {
+        if (e instanceof DomainError && e.code === "conflict")
+          throw new DomainError(
+            `The ${formatKwacha(sale.changeKeptNgwee)} change kept from this sale has already been used or collected, so it can't be cancelled here. Settle it with the customer first.`,
+            "conflict",
+          );
+        throw e;
+      });
+    }
     return tx.sale.findUniqueOrThrow({
       where: { id: saleId },
       include: saleInclude,
@@ -336,16 +368,19 @@ export async function salesBetween(ctx: Ctx, from: Date, to: Date) {
   const done = sales.filter((s) => s.status === "COMPLETED");
   const sum = (f: (s: (typeof done)[number]) => number) =>
     done.reduce((n, s) => n + f(s), 0);
+  // What each sale's payment covered: the total less kept change put towards it.
+  const paid = (s: (typeof done)[number]) => s.totalNgwee - s.changeUsedNgwee;
   return {
     sales,
     count: done.length,
     totalNgwee: sum((s) => s.totalNgwee),
     profitNgwee: sum((s) => s.totalNgwee - s.costTotalNgwee),
-    cashNgwee: sum((s) => (s.method === "CASH" ? s.totalNgwee : 0)),
-    mobileMoneyNgwee: sum((s) =>
-      s.method === "MOBILE_MONEY" ? s.totalNgwee : 0,
-    ),
-    onAccountNgwee: sum((s) => (s.method === "ON_ACCOUNT" ? s.totalNgwee : 0)),
+    // Cash that went into the drawer for sales, including change kept back for customers.
+    cashNgwee: sum((s) => (s.method === "CASH" ? paid(s) + s.changeKeptNgwee : 0)),
+    mobileMoneyNgwee: sum((s) => (s.method === "MOBILE_MONEY" ? paid(s) : 0)),
+    onAccountNgwee: sum((s) => (s.method === "ON_ACCOUNT" ? paid(s) : 0)),
+    changeKeptNgwee: sum((s) => s.changeKeptNgwee),
+    changeUsedNgwee: sum((s) => s.changeUsedNgwee),
     voided: sales.length - done.length,
   };
 }
