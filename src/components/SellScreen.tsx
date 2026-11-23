@@ -20,6 +20,7 @@ export type TillCustomer = {
   phone: string | null;
   hasCredit: boolean;
   availableNgwee: number;
+  changeHeldNgwee: number; // change the shop is keeping for them
 };
 
 // The basket keeps only ids and quantities. Product details (price, stock) are always read
@@ -52,6 +53,10 @@ export function SellScreen({
   const [tendered, setTendered] = useState("");
   const [reference, setReference] = useState("");
   const [phone, setPhone] = useState("");
+  // Kept change: use what the shop holds for this customer, or keep this sale's change for them.
+  const [useKept, setUseKept] = useState(false);
+  const [keepOn, setKeepOn] = useState(false);
+  const [keepAmount, setKeepAmount] = useState(""); // blank means all the change
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   // One ID per basket: if "Complete sale" is pressed twice, the server records one sale.
@@ -82,8 +87,6 @@ export function SellScreen({
     (n, l) => n + l.product.priceNgwee * l.quantity,
     0,
   );
-  const tenderedNgwee = tendered.trim() === "" ? null : parseKwacha(tendered);
-  const change = tenderedNgwee !== null ? tenderedNgwee - total : null;
   const everyone = useMemo(
     () => [
       ...customers,
@@ -94,16 +97,26 @@ export function SellScreen({
   const customer = everyone.find((c) => c.id === customerId);
   const overStock = lines.filter((l) => l.quantity > l.product.stockQty);
 
+  // Change kept for this customer earlier comes off what they pay now.
+  const used = useKept && customer ? Math.min(customer.changeHeldNgwee, total) : 0;
+  const due = total - used;
+  // With nothing left to pay, the cash box can stay empty.
+  const tenderedNgwee = tendered.trim() === "" ? (due === 0 && total > 0 ? 0 : null) : parseKwacha(tendered);
+  const change = tenderedNgwee !== null ? tenderedNgwee - due : null;
+  const keptRaw = keepAmount.trim() === "" ? change : parseKwacha(keepAmount);
+  const kept = method === "CASH" && keepOn && change !== null && change > 0 ? keptRaw : 0;
+  const keepOk = kept === 0 || (kept !== null && change !== null && kept <= change && customer !== undefined);
+
   const ready =
     lines.length > 0 &&
     overStock.length === 0 &&
     (method === "CASH"
-      ? tenderedNgwee !== null && tenderedNgwee >= total
+      ? tenderedNgwee !== null && tenderedNgwee >= due && keepOk
       : method === "MOBILE_MONEY"
         ? /^[A-Za-z0-9.-]{6,40}$/.test(reference.trim())
         : customer !== undefined &&
           customer.hasCredit &&
-          customer.availableNgwee >= total);
+          customer.availableNgwee >= due);
 
   function add(p: TillProduct) {
     setError(null);
@@ -135,12 +148,13 @@ export function SellScreen({
         })),
         payment:
           method === "CASH"
-            ? { method, tenderedNgwee: tenderedNgwee ?? 0 }
+            ? { method, tenderedNgwee: tenderedNgwee ?? 0, keepChangeNgwee: kept ?? 0 }
             : method === "MOBILE_MONEY"
               ? { method, reference }
               : { method, customerId },
         customerId,
         customerPhone: customer?.phone ? "" : phone,
+        useChangeNgwee: used,
       });
       if (res.ok) router.push(`/sales/${res.saleId}?new=1`);
       else {
@@ -321,9 +335,32 @@ export function SellScreen({
             if (c && !everyone.some((x) => x.id === c.id))
               setAdded((a) => [...a, c]);
             setCustomerId(c?.id ?? "");
+            setUseKept(false);
             setError(null);
           }}
         />
+
+        {customer && customer.changeHeldNgwee > 0 && (
+          <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-ochre/50 bg-ochre-soft px-3 py-2.5 text-sm">
+            <input type="checkbox" checked={useKept} onChange={(e) => setUseKept(e.target.checked)} className="mt-0.5 size-4 accent-forest" />
+            <span>
+              <span className="block font-semibold">
+                You&apos;re keeping {formatKwacha(customer.changeHeldNgwee)} change for {customer.name}
+              </span>
+              <span className="text-xs text-muted">
+                {useKept && total > 0
+                  ? `${formatKwacha(used)} comes off this sale${customer.changeHeldNgwee > used ? `, ${formatKwacha(customer.changeHeldNgwee - used)} stays kept` : ""}.`
+                  : "Tick to use it on this sale."}
+              </span>
+            </span>
+          </label>
+        )}
+        {used > 0 && (
+          <div className="flex items-baseline justify-between text-sm">
+            <span className="font-medium">Left to pay</span>
+            <span className="text-lg font-bold tabular-nums">{formatKwacha(due)}</span>
+          </div>
+        )}
 
         <fieldset className="space-y-3">
           <legend className="text-sm font-medium">Payment</legend>
@@ -365,8 +402,8 @@ export function SellScreen({
                 </label>
                 <button
                   type="button"
-                  onClick={() => setTendered((total / 100).toFixed(2))}
-                  disabled={total === 0}
+                  onClick={() => setTendered((due / 100).toFixed(2))}
+                  disabled={due === 0}
                   className="rounded-xl border border-line px-3 py-2 text-sm disabled:opacity-40"
                 >
                   Exact
@@ -383,7 +420,39 @@ export function SellScreen({
                   <strong className="tabular-nums">
                     {formatKwacha(change)}
                   </strong>
+                  {kept !== null && kept > 0 && kept <= change && (
+                    <span className="text-muted">
+                      {" "}
+                      · give {formatKwacha(change - kept)} now, keep {formatKwacha(kept)}
+                    </span>
+                  )}
                 </p>
+              )}
+              {change !== null && change > 0 && (
+                <div className="space-y-2 rounded-xl border border-line bg-canvas p-3 text-sm">
+                  <label className="flex cursor-pointer items-center gap-2 font-medium">
+                    <input type="checkbox" checked={keepOn} onChange={(e) => setKeepOn(e.target.checked)} className="size-4 accent-forest" />
+                    No change? Keep it for the customer
+                  </label>
+                  {keepOn &&
+                    (!customer ? (
+                      <p className="text-danger">Choose or add the customer above, so the change is kept in their name.</p>
+                    ) : (
+                      <label className="flex items-center gap-2">
+                        <span className="shrink-0">Keep (K)</span>
+                        <input
+                          inputMode="decimal"
+                          value={keepAmount}
+                          onChange={(e) => setKeepAmount(e.target.value)}
+                          placeholder={(change / 100).toFixed(2)}
+                          aria-label="Change to keep for the customer"
+                          aria-invalid={!keepOk ? true : undefined}
+                          className="w-28 rounded-xl border border-line bg-surface px-3 py-1.5 text-base tabular-nums"
+                        />
+                        <span className="text-xs text-muted">{keepOk ? `for ${customer.name}` : `at most ${formatKwacha(change)}`}</span>
+                      </label>
+                    ))}
+                </div>
               )}
               {change !== null && change < 0 && (
                 <p className="text-sm text-danger">
@@ -403,14 +472,14 @@ export function SellScreen({
                   {customer.name} doesn&apos;t have credit with you. An owner or
                   manager can give them a limit under Customers.
                 </p>
-              ) : total > customer.availableNgwee ? (
+              ) : due > customer.availableNgwee ? (
                 <p className="text-danger">
                   Over {customer.name}&apos;s credit by{" "}
-                  {formatKwacha(total - customer.availableNgwee)}. Take cash or
+                  {formatKwacha(due - customer.availableNgwee)}. Take cash or
                   mobile money instead.
                 </p>
               ) : (
-                total > 0 && <p>Added to what {customer.name} owes.</p>
+                due > 0 && <p>{formatKwacha(due)} is added to what {customer.name} owes.</p>
               )}
             </div>
           ) : (
@@ -463,7 +532,7 @@ export function SellScreen({
         >
           {pending
             ? "Recording…"
-            : `Complete sale${total ? ` · ${formatKwacha(total)}` : ""}`}
+            : `Complete sale${total ? ` · ${formatKwacha(due)}` : ""}`}
         </button>
       </section>
     </div>

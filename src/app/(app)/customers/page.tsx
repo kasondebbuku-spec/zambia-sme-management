@@ -22,19 +22,24 @@ export default async function CustomersPage({
     q ? Promise.resolve([]) : bestCustomers(ctx, from, to),
   ]);
   const totalOwed = customers.reduce((n, c) => n + c.balanceNgwee, 0);
+  const totalKept = customers.reduce((n, c) => n + c.changeHeldNgwee, 0);
 
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-baseline justify-between gap-3">
         <h1 className="text-2xl font-bold tracking-tight">Customers</h1>
-        {totalOwed > 0 && (
-          <p className="text-sm text-muted">
-            Owed to you:{" "}
-            <strong className="tabular-nums text-ink">
-              {formatKwacha(totalOwed)}
-            </strong>
-          </p>
-        )}
+        <div className="text-right text-sm text-muted">
+          {totalOwed > 0 && (
+            <p>
+              Owed to you: <strong className="tabular-nums text-ink">{formatKwacha(totalOwed)}</strong>
+            </p>
+          )}
+          {totalKept > 0 && (
+            <p>
+              Change you&apos;re keeping: <strong className="tabular-nums text-forest">{formatKwacha(totalKept)}</strong>
+            </p>
+          )}
+        </div>
       </div>
 
       {best.length > 0 && (
@@ -133,6 +138,11 @@ export default async function CustomersPage({
                     {full && (
                       <div className="text-xs font-medium text-danger">
                         at credit limit
+                      </div>
+                    )}
+                    {c.changeHeldNgwee > 0 && (
+                      <div className="text-xs font-medium text-forest">
+                        {formatKwacha(c.changeHeldNgwee)} change kept
                       </div>
                     )}
                   </div>

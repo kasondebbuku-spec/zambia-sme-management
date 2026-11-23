@@ -43,10 +43,17 @@ export function Receipt({ sale }: { sale: SaleWithItems }) {
 
       <dl className="mt-3 space-y-1 border-t border-dashed border-ink pt-3">
         <Row label="TOTAL" value={formatKwacha(sale.totalNgwee)} strong />
+        {sale.changeUsedNgwee > 0 && (
+          <>
+            <Row label="Kept change used" value={`−${formatKwacha(sale.changeUsedNgwee)}`} />
+            <Row label="To pay" value={formatKwacha(sale.totalNgwee - sale.changeUsedNgwee)} />
+          </>
+        )}
         {sale.method === "CASH" ? (
           <>
             <Row label="Cash" value={formatKwacha(sale.tenderedNgwee ?? 0)} />
-            <Row label="Change" value={formatKwacha(sale.changeNgwee ?? 0)} />
+            <Row label={sale.changeKeptNgwee > 0 ? "Change given" : "Change"} value={formatKwacha(sale.changeNgwee ?? 0)} />
+            {sale.changeKeptNgwee > 0 && <Row label="Change kept for you" value={formatKwacha(sale.changeKeptNgwee)} strong />}
           </>
         ) : sale.method === "ON_ACCOUNT" ? (
           <>
@@ -55,11 +62,14 @@ export function Receipt({ sale }: { sale: SaleWithItems }) {
           </>
         ) : (
           <>
-            <Row label="Mobile money" value={formatKwacha(sale.totalNgwee)} />
+            <Row label="Mobile money" value={formatKwacha(sale.totalNgwee - sale.changeUsedNgwee)} />
             <Row label="Ref" value={sale.paymentRef ?? ""} />
           </>
         )}
         {sale.method !== "ON_ACCOUNT" && sale.customer && <Row label="Customer" value={sale.customer.name} />}
+        {sale.status === "COMPLETED" && sale.customer && (sale.changeKeptNgwee > 0 || sale.changeUsedNgwee > 0) && (
+          <Row label="Change we keep for you now" value={formatKwacha(sale.customer.changeHeldNgwee)} />
+        )}
       </dl>
 
       {sale.status === "VOIDED" && sale.voidReason && (

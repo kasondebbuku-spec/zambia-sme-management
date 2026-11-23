@@ -10,6 +10,7 @@ import {
   recordPayment,
   setCreditLimit,
 } from "@/server/customers";
+import { payOutChange } from "@/server/change";
 import { DomainError } from "@/server/errors";
 import { requireUser } from "@/server/session";
 import { failed, text, toFormState, type FormState } from "./result";
@@ -109,6 +110,7 @@ export type QuickAddResult =
         name: string;
         phone: string | null;
         availableNgwee: number;
+        changeHeldNgwee: number;
       };
     }
   | { ok: false; error: string };
@@ -130,6 +132,7 @@ export async function addCustomerAtTill(input: {
         name: c.name,
         phone: c.phone,
         availableNgwee: Math.max(0, c.creditLimitNgwee - c.balanceNgwee),
+        changeHeldNgwee: c.changeHeldNgwee,
       },
     };
   } catch (e) {
@@ -141,4 +144,18 @@ export async function addCustomerAtTill(input: {
     if (e instanceof DomainError) return { ok: false, error: e.message };
     throw e;
   }
+}
+
+/** Hands a customer some or all of the change the shop kept for them. */
+export async function giveChange(customerId: string, _prev: FormState, form: FormData): Promise<FormState> {
+  const { ctx } = await requireUser();
+  const amount = parseKwacha(text(form, "amount"));
+  if (amount === null) return failed({ error: "Enter the amount in kwacha, like 5 or 2.50", fieldErrors: { amountNgwee: "Enter an amount like 5" } }, form);
+  try {
+    await payOutChange(ctx, customerId, amount);
+  } catch (e) {
+    return failed(toFormState(e), form);
+  }
+  revalidatePath(`/customers/${customerId}`);
+  return { ok: "Change handed over." };
 }
