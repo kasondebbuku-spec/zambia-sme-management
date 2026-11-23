@@ -90,3 +90,11 @@ export const PlusIcon = ({ className }: P) => (
     <path d="M12 5v14M5 12h14" />
   </svg>
 );
+
+export const BadgeIcon = ({ className }: P) => (
+  <svg {...base(className)}>
+    <rect x="4" y="3" width="16" height="18" rx="2.5" />
+    <circle cx="12" cy="10" r="2.6" />
+    <path d="M8 17a4 4 0 0 1 8 0M10 3v2h4V3" />
+  </svg>
+);

@@ -3,9 +3,11 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { db } from "./db";
 import type { Ctx } from "./errors";
+import { sessionStillValid } from "./staff";
 
 // Signed-in users carry a signed JWT in an httpOnly cookie, valid for 7 days.
-// The user is reloaded on every request, so a deactivated account is locked out at once.
+// The user is reloaded on every request, so a deactivated account, or one whose password
+// changed since this sign-in, is locked out at once.
 const COOKIE = "kantemba_session";
 const MAX_AGE = 60 * 60 * 24 * 7;
 
@@ -37,7 +39,8 @@ export async function currentUser() {
     const { payload } = await jwtVerify(token, secret(), { algorithms: ["HS256"] });
     if (!payload.sub) return null;
     const user = await db.user.findUnique({ where: { id: payload.sub }, include: { business: true } });
-    return user?.isActive ? user : null;
+    // Locked out at once if switched off, or if the password changed after this sign-in.
+    return user?.isActive && sessionStillValid(payload.iat, user.passwordChangedAt) ? user : null;
   } catch {
     return null;
   }

@@ -2,9 +2,9 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BoxIcon, CartIcon, HomeIcon, PeopleIcon, ReceiptIcon, TruckIcon } from "./icons";
+import { BadgeIcon, BoxIcon, CartIcon, HomeIcon, PeopleIcon, ReceiptIcon, TruckIcon } from "./icons";
 
-type Item = { href: string; label: string; icon: (p: { className?: string }) => React.ReactElement; managersOnly?: boolean };
+type Item = { href: string; label: string; icon: (p: { className?: string }) => React.ReactElement; managersOnly?: boolean; ownersOnly?: boolean };
 
 const ITEMS: Item[] = [
   { href: "/dashboard", label: "Home", icon: HomeIcon },
@@ -13,16 +13,17 @@ const ITEMS: Item[] = [
   { href: "/products", label: "Stock", icon: BoxIcon },
   { href: "/customers", label: "Customers", icon: PeopleIcon },
   { href: "/purchases", label: "Orders", icon: TruckIcon, managersOnly: true },
+  { href: "/staff", label: "Staff", icon: BadgeIcon, managersOnly: true, ownersOnly: true },
 ];
 
 const isActive = (path: string, href: string) => path === href || path.startsWith(`${href}/`) || (href === "/purchases" && path.startsWith("/suppliers"));
 
 /** Sidebar on wide screens. */
-export function SideNav({ isManager }: { isManager: boolean }) {
+export function SideNav({ isManager, isOwner }: { isManager: boolean; isOwner: boolean }) {
   const path = usePathname();
   return (
     <nav aria-label="Main" className="space-y-1">
-      {ITEMS.filter((i) => isManager || !i.managersOnly).map((i) => {
+      {ITEMS.filter((i) => (isManager || !i.managersOnly) && (isOwner || !i.ownersOnly)).map((i) => {
         const active = isActive(path, i.href);
         const Icon = i.icon;
         if (i.href === "/sell") {

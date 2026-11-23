@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { signOut } from "@/app/actions/auth";
 import { BottomNav, SideNav } from "@/components/AppNav";
-import { LogoutIcon, TruckIcon } from "@/components/icons";
+import { BadgeIcon, LogoutIcon, TruckIcon } from "@/components/icons";
 import { requireUser } from "@/server/session";
 
 const ROLE = { OWNER: "Owner", MANAGER: "Manager", CASHIER: "Cashier" } as const;
@@ -31,14 +31,16 @@ export default async function SignedInLayout({ children }: { children: React.Rea
           </div>
         </div>
         <div className="flex-1 overflow-y-auto px-3">
-          <SideNav isManager={isManager} />
+          <SideNav isManager={isManager} isOwner={user.role === "OWNER"} />
         </div>
         <div className="m-3 flex items-center gap-3 rounded-xl bg-canvas p-3">
-          <Avatar name={user.name} />
-          <div className="min-w-0 flex-1">
-            <div className="truncate text-sm font-medium">{user.name}</div>
-            <div className="text-xs text-muted">{ROLE[user.role]}</div>
-          </div>
+          <Link href="/account" className="flex min-w-0 flex-1 items-center gap-3 rounded-lg hover:opacity-80" title="My account">
+            <Avatar name={user.name} />
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-sm font-medium">{user.name}</div>
+              <div className="text-xs text-muted">{ROLE[user.role]} · My account</div>
+            </div>
+          </Link>
           <SignOutButton />
         </div>
       </aside>
@@ -58,7 +60,14 @@ export default async function SignedInLayout({ children }: { children: React.Rea
                   <TruckIcon />
                 </Link>
               )}
-              <Avatar name={user.name} small />
+              {user.role === "OWNER" && (
+                <Link href="/staff" className="rounded-full p-2 text-muted hover:bg-sand hover:text-ink" aria-label="Staff">
+                  <BadgeIcon />
+                </Link>
+              )}
+              <Link href="/account" aria-label="My account" className="rounded-full">
+                <Avatar name={user.name} small />
+              </Link>
               <SignOutButton />
             </div>
           </div>
